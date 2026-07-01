@@ -13,10 +13,12 @@ export async function authMiddleware(c: Context, next: Next) {
   const token = authHeader.substring(7);
   
   try {
-    const decoded = await verify(token, SECRET);
+    const decoded = await verify(token, SECRET, 'HS256');
+    console.log('Token verified successfully:', decoded);
     c.set('user', decoded);
     await next();
   } catch (e) {
+    console.error('Token verification failed:', e);
     return c.json({ error: '无效的token' }, 401);
   }
 }

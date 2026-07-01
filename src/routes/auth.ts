@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getDb, saveDb } from '../db';
 import bcrypt from 'bcryptjs';
-import { generateToken } from '../middleware/auth';
+import { generateToken, authMiddleware } from '../middleware/auth';
 
 const auth = new Hono();
 
@@ -69,7 +69,8 @@ auth.post('/login', async (c) => {
     id: user.id,
     email: user.email,
     username: user.username,
-    role: user.role
+    role: user.role,
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 // 24 hours
   });
 
   return c.json({
@@ -85,9 +86,9 @@ auth.post('/login', async (c) => {
   });
 });
 
-// Get current user
-auth.get('/me', async (c) => {
-  const jwtUser = c.get('user') as any;
+// Get current user (requires auth)
+auth.get('/me', authMiddleware, async (c) => {
+  const jwtUser = (c as any).get('user') as any;
   const db = await getDb();
   
   const result = db.exec('SELECT id, email, username, role, status, created_at FROM users WHERE id = ?', [jwtUser.id]);

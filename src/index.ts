@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { serve } from '@hono/node-server';
 import { initDatabase } from './db';
 import { authMiddleware } from './middleware/auth';
 import auth from './routes/auth';
@@ -24,18 +25,29 @@ app.use('*', cors({
   credentials: true,
 }));
 
-// Public routes
+// Public routes - no auth required
 app.route('/api/auth', auth);
 
-// Protected routes
-app.use('/api/*', authMiddleware);
-
+// Protected routes - auth required
+app.use('/api/users', authMiddleware);
 app.route('/api/users', users);
+
+app.use('/api/projects', authMiddleware);
 app.route('/api/projects', projects);
+
+app.use('/api/cardkeys', authMiddleware);
 app.route('/api/cardkeys', cardkeys);
+
+app.use('/api/templates', authMiddleware);
 app.route('/api/templates', templates);
+
+app.use('/api/roles', authMiddleware);
 app.route('/api/roles', roles);
+
+app.use('/api/permissions', authMiddleware);
 app.route('/api/permissions', permissions);
+
+app.use('/api/dashboard', authMiddleware);
 app.route('/api/dashboard', dashboard);
 
 // Health check
@@ -45,9 +57,9 @@ app.get('/health', (c) => {
 
 // Start server
 const port = 3000;
-console.log(`Server is running on http://localhost:${port}`);
-
-export default {
-  port,
+serve({
   fetch: app.fetch,
-};
+  port,
+}, (info) => {
+  console.log(`Server is running on http://localhost:${info.port}`);
+});
