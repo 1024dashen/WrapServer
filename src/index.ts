@@ -19,10 +19,9 @@ const app = new Hono();
 
 // CORS middleware
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
 }));
 
 // Public routes - no auth required
