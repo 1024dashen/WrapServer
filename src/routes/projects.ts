@@ -54,14 +54,14 @@ projects.get('/:id', async (c) => {
 projects.post('/', async (c) => {
   const jwtUser = (c as any).get('user') as any;
   const body = await c.req.json();
-  const { name, url, status } = body;
+  const { name, url, status, template_id } = body;
 
   if (!name || !url) {
     return c.json({ error: '请填写完整信息' }, 400);
   }
 
   const db = await getDb();
-  db.run('INSERT INTO projects (user_id, name, url, status) VALUES (?, ?, ?, ?)', [jwtUser.id, name, url, status || 'active']);
+  db.run('INSERT INTO projects (user_id, template_id, name, url, status) VALUES (?, ?, ?, ?, ?)', [jwtUser.id, template_id || null, name, url, status || 'active']);
   saveDb();
 
   const result = db.exec('SELECT last_insert_rowid()');
@@ -75,7 +75,7 @@ projects.put('/:id', async (c) => {
   const jwtUser = (c as any).get('user') as any;
   const id = c.req.param('id');
   const body = await c.req.json();
-  const { name, url, status } = body;
+  const { name, url, status, template_id } = body;
 
   const db = await getDb();
 
@@ -90,6 +90,7 @@ projects.put('/:id', async (c) => {
   if (name) { updates.push('name = ?'); values.push(name); }
   if (url) { updates.push('url = ?'); values.push(url); }
   if (status) { updates.push('status = ?'); values.push(status); }
+  if (template_id !== undefined) { updates.push('template_id = ?'); values.push(template_id); }
 
   if (updates.length > 0) {
     values.push(id);
