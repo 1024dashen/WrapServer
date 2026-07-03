@@ -25,6 +25,29 @@ templates.get('/', async (c) => {
   return c.json({ templates });
 });
 
+// Preview template (serve HTML file directly)
+templates.get('/preview/:id', async (c) => {
+  const id = c.req.param('id');
+  const db = await getDb();
+  const result = db.exec('SELECT file_name FROM templates WHERE id = ?', [id]);
+
+  if (result.length === 0 || result[0].values.length === 0) {
+    return c.html('<html><body><h1>模板不存在</h1></body></html>', 404);
+  }
+
+  const fileName = result[0].values[0][0] as string;
+  const filePath = join(templateDir, fileName);
+
+  if (!existsSync(filePath)) {
+    return c.html('<html><body><h1>模板文件不存在</h1></body></html>', 404);
+  }
+
+  const { readFileSync } = require('fs');
+  const htmlContent = readFileSync(filePath, 'utf-8');
+  
+  return c.html(htmlContent);
+});
+
 // Get template by id (with file content)
 templates.get('/:id', async (c) => {
   const id = c.req.param('id');
