@@ -26,6 +26,43 @@ app.use('*', cors({
 
 // Public routes - no auth required
 app.route('/api/auth', auth);
+app.get('/api/cardkeys/verify/:key', async (c) => {
+  const key = c.req.param('key');
+  const { getDb } = await import('./db');
+  const db = await getDb();
+  
+  const result = db.exec('SELECT * FROM card_keys WHERE key = ?', [key]);
+  
+  if (result.length === 0 || result[0].values.length === 0) {
+    return c.json({ valid: false, error: '卡密不存在' }, 404);
+  }
+  
+  const columns = result[0].columns;
+  const values = result[0].values[0];
+  const cardKey: any = {};
+  columns.forEach((col: string, i: number) => { cardKey[col] = values[i]; });
+  
+  // Check if card key is expired
+  if (cardKey.status === 'expired') {
+    return c.json({ valid: false, error: '卡密已过期' }, 400);
+  }
+  
+  // Check if card key has expiration date and if it's past
+  if (cardKey.expire_at) {
+    const expireDate = new Date(cardKey.expire_at);
+    const now = new Date();
+    if (expireDate < now) {
+      return c.json({ valid: false, error: '卡密已过期' }, 400);
+    }
+  }
+  
+  return c.json({
+    valid: true,
+    type: cardKey.type,
+    expireAt: cardKey.expire_at,
+    status: cardKey.status
+  });
+});
 
 // Protected routes - auth required
 app.use('/api/users', authMiddleware);
