@@ -1,7 +1,7 @@
 import { Context, Next } from 'hono';
 import { sign, verify } from 'hono/jwt';
 
-const SECRET = 'wrap-server-secret-key-change-in-production';
+export const SECRET = 'wrap-server-secret-key-change-in-production';
 
 export async function authMiddleware(c: Context, next: Next) {
   const authHeader = c.req.header('Authorization');

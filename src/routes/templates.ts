@@ -27,8 +27,39 @@ templates.get('/', async (c) => {
 
 // Preview template (serve HTML file directly)
 templates.get('/preview/:id', async (c) => {
-  const id = c.req.param('id');
+  // Check permission - accept token from query parameter for new tab access
+  const token = c.req.query('token');
+  let jwtUser = (c as any).get('user') as any;
+  
+  // If no user in context but token provided in query, verify it
+  if (!jwtUser && token) {
+    try {
+      const { verify } = await import('hono/jwt');
+      const { SECRET } = await import('../middleware/auth');
+      jwtUser = await verify(token, SECRET, 'HS256');
+    } catch (e) {
+      return c.html('<html><body><h1>无效的token</h1></body></html>', 401);
+    }
+  }
+  
+  if (!jwtUser) {
+    return c.html('<html><body><h1>未授权访问</h1></body></html>', 401);
+  }
+  
   const db = await getDb();
+  
+  // Get user's role permissions
+  const roleResult = db.exec('SELECT permissions FROM roles WHERE name = ?', [jwtUser.role]);
+  const userPermissions = roleResult.length > 0 && roleResult[0].values.length > 0 
+    ? JSON.parse(roleResult[0].values[0][0] as string) 
+    : [];
+  
+  // Check if user has template:preview permission
+  if (!userPermissions.includes('template:preview')) {
+    return c.html('<html><body><h1>无权访问此功能</h1></body></html>', 403);
+  }
+  
+  const id = c.req.param('id');
   const result = db.exec('SELECT file_name FROM templates WHERE id = ?', [id]);
 
   if (result.length === 0 || result[0].values.length === 0) {
@@ -71,6 +102,16 @@ templates.get('/:id', async (c) => {
   return c.json({ template });
 });
 
+// Generate random filename
+function generateRandomFileName(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result + '.html';
+}
+
 // Create template
 templates.post('/', async (c) => {
   const body = await c.req.json();
@@ -80,12 +121,15 @@ templates.post('/', async (c) => {
     return c.json({ error: '请填写完整信息' }, 400);
   }
 
+  // Generate random filename to prevent collisions
+  const randomFileName = generateRandomFileName();
+  
   // Save HTML file to templates directory
-  const filePath = join(templateDir, fileName);
+  const filePath = join(templateDir, randomFileName);
   writeFileSync(filePath, htmlContent, 'utf-8');
 
   const db = await getDb();
-  db.run('INSERT INTO templates (name, html_content, file_name) VALUES (?, ?, ?)', [name, fileName, fileName]);
+  db.run('INSERT INTO templates (name, html_content, file_name) VALUES (?, ?, ?)', [name, randomFileName, randomFileName]);
   saveDb();
 
   const result = db.exec('SELECT last_insert_rowid()');
