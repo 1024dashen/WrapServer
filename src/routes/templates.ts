@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { getDb, saveDb } from '../db';
-import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 const templates = new Hono();
@@ -42,7 +42,6 @@ templates.get('/preview/:id', async (c) => {
     return c.html('<html><body><h1>模板文件不存在</h1></body></html>', 404);
   }
 
-  const { readFileSync } = require('fs');
   const htmlContent = readFileSync(filePath, 'utf-8');
   
   return c.html(htmlContent);
@@ -66,7 +65,6 @@ templates.get('/:id', async (c) => {
   // Read HTML file content from filesystem
   const filePath = join(templateDir, template.file_name);
   if (existsSync(filePath)) {
-    const { readFileSync } = require('fs');
     template.html_content = readFileSync(filePath, 'utf-8');
   }
 
