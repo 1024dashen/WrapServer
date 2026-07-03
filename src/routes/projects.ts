@@ -3,37 +3,40 @@ import { getDb, saveDb } from '../db';
 
 const projects = new Hono();
 
-// Get all projects with card key count
+// Get all projects with card key count (only for current user)
 projects.get('/', async (c) => {
+  const jwtUser = (c as any).get('user') as any;
   const db = await getDb();
   const result = db.exec(`
     SELECT p.*, COUNT(ck.id) as cardKeyCount 
     FROM projects p 
     LEFT JOIN card_keys ck ON p.id = ck.project_id 
+    WHERE p.user_id = ?
     GROUP BY p.id 
     ORDER BY p.id
-  `);
+  `, [jwtUser.id]);
 
-  const projects = result.length > 0 ? result[0].values.map(row => {
+  const projects = result.length > 0 ? result[0].values.map((row: any) => {
     const obj: any = {};
-    result[0].columns.forEach((col, i) => { obj[col] = row[i]; });
+    result[0].columns.forEach((col: string, i: number) => { obj[col] = row[i]; });
     return obj;
   }) : [];
 
   return c.json({ projects });
 });
 
-// Get project by id
+// Get project by id (only if owned by current user)
 projects.get('/:id', async (c) => {
+  const jwtUser = (c as any).get('user') as any;
   const id = c.req.param('id');
   const db = await getDb();
   const result = db.exec(`
     SELECT p.*, COUNT(ck.id) as cardKeyCount 
     FROM projects p 
     LEFT JOIN card_keys ck ON p.id = ck.project_id 
-    WHERE p.id = ?
+    WHERE p.id = ? AND p.user_id = ?
     GROUP BY p.id
-  `, [id]);
+  `, [id, jwtUser.id]);
 
   if (result.length === 0 || result[0].values.length === 0) {
     return c.json({ error: '项目不存在' }, 404);
@@ -49,6 +52,7 @@ projects.get('/:id', async (c) => {
 
 // Create project
 projects.post('/', async (c) => {
+  const jwtUser = (c as any).get('user') as any;
   const body = await c.req.json();
   const { name, url, status } = body;
 
@@ -57,7 +61,7 @@ projects.post('/', async (c) => {
   }
 
   const db = await getDb();
-  db.run('INSERT INTO projects (name, url, status) VALUES (?, ?, ?)', [name, url, status || 'active']);
+  db.run('INSERT INTO projects (user_id, name, url, status) VALUES (?, ?, ?, ?)', [jwtUser.id, name, url, status || 'active']);
   saveDb();
 
   const result = db.exec('SELECT last_insert_rowid()');
@@ -66,17 +70,18 @@ projects.post('/', async (c) => {
   return c.json({ message: '创建成功', id });
 });
 
-// Update project
+// Update project (only if owned by current user)
 projects.put('/:id', async (c) => {
+  const jwtUser = (c as any).get('user') as any;
   const id = c.req.param('id');
   const body = await c.req.json();
   const { name, url, status } = body;
 
   const db = await getDb();
 
-  const project = db.exec('SELECT id FROM projects WHERE id = ?', [id]);
+  const project = db.exec('SELECT id FROM projects WHERE id = ? AND user_id = ?', [id, jwtUser.id]);
   if (project.length === 0 || project[0].values.length === 0) {
-    return c.json({ error: '项目不存在' }, 404);
+    return c.json({ error: '项目不存在或无权操作' }, 404);
   }
 
   const updates: string[] = [];
@@ -95,14 +100,15 @@ projects.put('/:id', async (c) => {
   return c.json({ message: '更新成功' });
 });
 
-// Delete project
+// Delete project (only if owned by current user)
 projects.delete('/:id', async (c) => {
+  const jwtUser = (c as any).get('user') as any;
   const id = c.req.param('id');
   const db = await getDb();
   
-  const project = db.exec('SELECT id FROM projects WHERE id = ?', [id]);
+  const project = db.exec('SELECT id FROM projects WHERE id = ? AND user_id = ?', [id, jwtUser.id]);
   if (project.length === 0 || project[0].values.length === 0) {
-    return c.json({ error: '项目不存在' }, 404);
+    return c.json({ error: '项目不存在或无权操作' }, 404);
   }
 
   db.run('DELETE FROM projects WHERE id = ?', [id]);
