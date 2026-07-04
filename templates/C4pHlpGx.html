@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>卡密验证</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 480px;
+      padding: 40px 30px;
+      animation: slideUp 0.5s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .logo {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 15px;
+    }
+
+    .logo svg {
+      width: 32px;
+      height: 32px;
+      fill: white;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #999;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: all 0.3s;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    input::placeholder {
+      color: #bbb;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .result {
+      margin-top: 25px;
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    .result.show {
+      display: block;
+    }
+
+    .result.success {
+      background: #f0fdf4;
+      border: 2px solid #22c55e;
+    }
+
+    .result.error {
+      background: #fef2f2;
+      border: 2px solid #ef4444;
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .result-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .success .result-icon {
+      background: #22c55e;
+    }
+
+    .error .result-icon {
+      background: #ef4444;
+    }
+
+    .result-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: white;
+    }
+
+    .result-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .success .result-title {
+      color: #16a34a;
+    }
+
+    .error .result-title {
+      color: #dc2626;
+    }
+
+    .result-info {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .result-info strong {
+      color: #333;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .btn .loading {
+      margin-right: 8px;
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        padding: 30px 20px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      input {
+        padding: 12px 14px;
+        font-size: 15px;
+      }
+
+      .btn {
+        padding: 12px;
+        font-size: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+        </svg>
+      </div>
+      <h1>卡密验证</h1>
+      <p class="subtitle">请输入您的卡密进行验证</p>
+    </div>
+
+    <form id="verifyForm">
+      <div class="form-group">
+        <label for="cardKey">卡密</label>
+        <div class="input-wrapper">
+          <input 
+            type="text" 
+            id="cardKey" 
+            placeholder="请输入卡密"
+            autocomplete="off"
+            required
+          >
+        </div>
+      </div>
+      <button type="submit" class="btn" id="submitBtn">
+        <span id="btnText">验证卡密</span>
+      </button>
+    </form>
+
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('verifyForm');
+    const cardKeyInput = document.getElementById('cardKey');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const resultDiv = document.getElementById('result');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const cardKey = cardKeyInput.value.trim();
+      
+      if (!cardKey) {
+        showResult(false, '请输入卡密');
+        return;
+      }
+
+      setLoading(true);
+      
+      try {
+        const response = await fetch(`http://localhost:3000/api/cardkeys/verify/${encodeURIComponent(cardKey)}`);
+        const data = await response.json();
+        
+        if (response.ok && data.valid) {
+          let info = `<strong>卡密：</strong>${cardKey}<br>`;
+          info += `<strong>类型：</strong>${getTypeName(data.type)}<br>`;
+          info += `<strong>状态：</strong>有效`;
+          
+          if (data.expireAt) {
+            info += `<br><strong>到期时间：</strong>${formatDate(data.expireAt)}`;
+          }
+          
+          showResult(true, '验证成功', info);
+        } else {
+          showResult(false, data.error || '卡密无效或已过期');
+        }
+      } catch (error) {
+        showResult(false, '验证失败，请稍后重试');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    function setLoading(loading) {
+      submitBtn.disabled = loading;
+      if (loading) {
+        btnText.innerHTML = '<span class="loading"></span>验证中...';
+      } else {
+        btnText.textContent = '验证卡密';
+      }
+    }
+
+    function showResult(success, title, info = '') {
+      resultDiv.className = `result show ${Success ? 'success' : 'error'}`;
+      
+      const icon = Success 
+        ? '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+      
+      resultDiv.innerHTML = `
+        <div class="result-header">
+          <div class="result-icon">${icon}</div>
+          <div class="result-title">${title}</div>
+        </div>
+        ${info ? `<div class="result-info">${info}</div>` : ''}
+      `;
+    }
+
+    function getTypeName(type) {
+      const types = {
+        'daily': '日卡',
+        'weekly': '周卡',
+        'monthly': '月卡',
+        'yearly': '年卡',
+        'permanent': '永久卡'
+      };
+      return types[type] || type;
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+  </script>
+</body>
+</html>
