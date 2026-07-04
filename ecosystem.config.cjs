@@ -5,9 +5,9 @@
 module.exports = {
     apps: [
         {
-            name: 'wrap-server',
-            script: 'npx',
-            args: 'tsx src/index.ts',
+            name: 'wrapserver',
+            script: 'pnpm',
+            args: 'dev',
             cwd: './',
             instances: 1,
             autorestart: true,
