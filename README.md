@@ -147,3 +147,74 @@ src/
 ```
 
 使用 hono + ts + sqlite
+
+## 部署
+
+使用 `tsx` 直接运行 TypeScript 源码，`pm2` 管理进程，无需编译步骤。
+
+### 前置要求
+
+- Node.js >= 18
+- npm
+
+### 一键部署
+
+```bash
+# 赋予执行权限并运行部署脚本
+chmod +x deploy/deploy.sh
+bash deploy/deploy.sh
+```
+
+脚本会自动完成：安装依赖 → 检查 tsx → 安装 pm2（如缺失）→ 启动服务 → 配置开机自启
+
+### 手动部署
+
+```bash
+# 1. 安装依赖
+npm install
+
+# 2. 安装 pm2（如未安装）
+npm install -g pm2
+
+# 3. 启动服务
+pm2 start deploy/ecosystem.config.cjs
+
+# 4. 设置开机自启
+pm2 startup
+pm2 save
+```
+
+### 常用 pm2 命令
+
+| 命令                      | 说明         |
+| ------------------------- | ------------ |
+| `pm2 status`              | 查看服务状态 |
+| `pm2 logs wrap-server`    | 查看实时日志 |
+| `pm2 restart wrap-server` | 重启服务     |
+| `pm2 stop wrap-server`    | 停止服务     |
+| `pm2 delete wrap-server`  | 删除服务     |
+| `pm2 monit`               | 监控面板     |
+
+### 部署目录结构
+
+```
+deploy/
+├── ecosystem.config.cjs   # pm2 配置文件
+└── deploy.sh              # 一键部署脚本
+```
+
+### 配置说明
+
+`ecosystem.config.cjs` 关键配置：
+
+- **运行方式**: `npx tsx src/index.ts`，直接执行 TypeScript
+- **日志路径**: `./logs/error.log`、`./logs/output.log`
+- **内存限制**: 超过 512M 自动重启
+- **自动重启**: 进程异常退出后自动恢复
+
+### 更新代码后重启
+
+```bash
+# 拉取最新代码后只需重启
+pm2 restart wrap-server
+```
