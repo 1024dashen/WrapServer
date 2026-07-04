@@ -1,164 +1,131 @@
-import { Hono } from 'hono';
-import { getDb, saveDb } from '../db';
-import { writeFileSync, unlinkSync, existsSync, mkdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { Hono } from 'hono'
+import { getDb, saveDb } from '../db'
+import {
+    writeFileSync,
+    unlinkSync,
+    existsSync,
+    mkdirSync,
+    readFileSync,
+} from 'fs'
+import { join } from 'path'
 
-const templates = new Hono();
-const templateDir = join(process.cwd(), 'templates');
+const templates = new Hono()
+const templateDir = join(process.cwd(), 'templates')
 
 // Ensure template directory exists
 if (!existsSync(templateDir)) {
-  mkdirSync(templateDir, { recursive: true });
+    mkdirSync(templateDir, { recursive: true })
 }
 
 // Get all templates
 templates.get('/', async (c) => {
-  const db = await getDb();
-  const result = db.exec('SELECT * FROM templates ORDER BY id DESC');
-  
-  const templates = result.length > 0 ? result[0].values.map((row: any) => {
-    const obj: any = {};
-    result[0].columns.forEach((col: string, i: number) => { obj[col] = row[i]; });
-    return obj;
-  }) : [];
+    const db = await getDb()
+    const result = db.exec('SELECT * FROM templates ORDER BY id DESC')
 
-  return c.json({ templates });
-});
+    const templates =
+        result.length > 0
+            ? result[0].values.map((row: any) => {
+                  const obj: any = {}
+                  result[0].columns.forEach((col: string, i: number) => {
+                      obj[col] = row[i]
+                  })
+                  return obj
+              })
+            : []
 
-// Preview template (serve HTML file directly)
-templates.get('/preview/:id', async (c) => {
-  // Check permission - accept token from query parameter for new tab access
-  const token = c.req.query('token');
-  let jwtUser = (c as any).get('user') as any;
-  
-  // If no user in context but token provided in query, verify it
-  if (!jwtUser && token) {
-    try {
-      const { verify } = await import('hono/jwt');
-      const { SECRET } = await import('../middleware/auth');
-      jwtUser = await verify(token, SECRET, 'HS256');
-    } catch (e) {
-      return c.html('<html><body><h1>无效的token</h1></body></html>', 401);
-    }
-  }
-  
-  if (!jwtUser) {
-    return c.html('<html><body><h1>未授权访问</h1></body></html>', 401);
-  }
-  
-  const db = await getDb();
-  
-  // Get user's role permissions
-  const roleResult = db.exec('SELECT permissions FROM roles WHERE name = ?', [jwtUser.role]);
-  const userPermissions = roleResult.length > 0 && roleResult[0].values.length > 0 
-    ? JSON.parse(roleResult[0].values[0][0] as string) 
-    : [];
-  
-  // Check if user has template:preview permission
-  if (!userPermissions.includes('template:preview')) {
-    return c.html('<html><body><h1>无权访问此功能</h1></body></html>', 403);
-  }
-  
-  const id = c.req.param('id');
-  const result = db.exec('SELECT file_name FROM templates WHERE id = ?', [id]);
-
-  if (result.length === 0 || result[0].values.length === 0) {
-    return c.html('<html><body><h1>模板不存在</h1></body></html>', 404);
-  }
-
-  const fileName = result[0].values[0][0] as string;
-  const filePath = join(templateDir, fileName);
-
-  if (!existsSync(filePath)) {
-    return c.html('<html><body><h1>模板文件不存在</h1></body></html>', 404);
-  }
-
-  const htmlContent = readFileSync(filePath, 'utf-8');
-  
-  return c.html(htmlContent);
-});
+    return c.json({ templates })
+})
 
 // Get template by id (with file content)
 templates.get('/:id', async (c) => {
-  const id = c.req.param('id');
-  const db = await getDb();
-  const result = db.exec('SELECT * FROM templates WHERE id = ?', [id]);
+    const id = c.req.param('id')
+    const db = await getDb()
+    const result = db.exec('SELECT * FROM templates WHERE id = ?', [id])
 
-  if (result.length === 0 || result[0].values.length === 0) {
-    return c.json({ error: '模板不存在' }, 404);
-  }
+    if (result.length === 0 || result[0].values.length === 0) {
+        return c.json({ error: '模板不存在' }, 404)
+    }
 
-  const columns = result[0].columns;
-  const values = result[0].values[0];
-  const template: any = {};
-  columns.forEach((col: string, i: number) => { template[col] = values[i]; });
+    const columns = result[0].columns
+    const values = result[0].values[0]
+    const template: any = {}
+    columns.forEach((col: string, i: number) => {
+        template[col] = values[i]
+    })
 
-  // Read HTML file content from filesystem
-  const filePath = join(templateDir, template.file_name);
-  if (existsSync(filePath)) {
-    template.html_content = readFileSync(filePath, 'utf-8');
-  }
+    // Read HTML file content from filesystem
+    const filePath = join(templateDir, template.file_name)
+    if (existsSync(filePath)) {
+        template.html_content = readFileSync(filePath, 'utf-8')
+    }
 
-  return c.json({ template });
-});
+    return c.json({ template })
+})
 
 // Generate random filename
 function generateRandomFileName(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result + '.html';
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let result = ''
+    for (let i = 0; i < 8; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return result + '.html'
 }
 
 // Create template
 templates.post('/', async (c) => {
-  const body = await c.req.json();
-  const { name, htmlContent, fileName } = body;
+    const body = await c.req.json()
+    const { name, htmlContent, fileName } = body
 
-  if (!name || !htmlContent || !fileName) {
-    return c.json({ error: '请填写完整信息' }, 400);
-  }
+    if (!name || !htmlContent || !fileName) {
+        return c.json({ error: '请填写完整信息' }, 400)
+    }
 
-  // Generate random filename to prevent collisions
-  const randomFileName = generateRandomFileName();
-  
-  // Save HTML file to templates directory
-  const filePath = join(templateDir, randomFileName);
-  writeFileSync(filePath, htmlContent, 'utf-8');
+    // Generate random filename to prevent collisions
+    const randomFileName = generateRandomFileName()
 
-  const db = await getDb();
-  db.run('INSERT INTO templates (name, html_content, file_name) VALUES (?, ?, ?)', [name, randomFileName, randomFileName]);
-  saveDb();
+    // Save HTML file to templates directory
+    const filePath = join(templateDir, randomFileName)
+    writeFileSync(filePath, htmlContent, 'utf-8')
 
-  const result = db.exec('SELECT last_insert_rowid()');
-  const id = result[0].values[0][0];
+    const db = await getDb()
+    db.run(
+        'INSERT INTO templates (name, html_content, file_name) VALUES (?, ?, ?)',
+        [name, randomFileName, randomFileName],
+    )
+    saveDb()
 
-  return c.json({ message: '创建成功', id });
-});
+    const result = db.exec('SELECT last_insert_rowid()')
+    const id = result[0].values[0][0]
+
+    return c.json({ message: '创建成功', id })
+})
 
 // Delete template
 templates.delete('/:id', async (c) => {
-  const id = c.req.param('id');
-  const db = await getDb();
-  
-  const template = db.exec('SELECT id, file_name FROM templates WHERE id = ?', [id]);
-  if (template.length === 0 || template[0].values.length === 0) {
-    return c.json({ error: '模板不存在' }, 404);
-  }
+    const id = c.req.param('id')
+    const db = await getDb()
 
-  const fileName = template[0].values[0][1] as string;
-  const filePath = join(templateDir, fileName);
+    const template = db.exec(
+        'SELECT id, file_name FROM templates WHERE id = ?',
+        [id],
+    )
+    if (template.length === 0 || template[0].values.length === 0) {
+        return c.json({ error: '模板不存在' }, 404)
+    }
 
-  // Delete HTML file from filesystem
-  if (existsSync(filePath)) {
-    unlinkSync(filePath);
-  }
+    const fileName = template[0].values[0][1] as string
+    const filePath = join(templateDir, fileName)
 
-  db.run('DELETE FROM templates WHERE id = ?', [id]);
-  saveDb();
-  return c.json({ message: '删除成功' });
-});
+    // Delete HTML file from filesystem
+    if (existsSync(filePath)) {
+        unlinkSync(filePath)
+    }
 
-export default templates;
+    db.run('DELETE FROM templates WHERE id = ?', [id])
+    saveDb()
+    return c.json({ message: '删除成功' })
+})
+
+export default templates

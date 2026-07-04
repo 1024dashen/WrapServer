@@ -29,6 +29,32 @@ app.use(
 
 // Public routes - no auth required
 app.route('/api/auth', auth)
+
+// Template preview - public access (button visibility controlled by frontend permission)
+app.get('/api/templates/preview/:id', async (c) => {
+    const id = c.req.param('id')
+    const { getDb } = await import('./db')
+    const { join } = await import('path')
+    const { existsSync, readFileSync } = await import('fs')
+    const db = await getDb()
+    const templateDir = join(process.cwd(), 'templates')
+
+    const result = db.exec('SELECT file_name FROM templates WHERE id = ?', [id])
+    if (result.length === 0 || result[0].values.length === 0) {
+        return c.html('<html><body><h1>模板不存在</h1></body></html>', 404)
+    }
+
+    const fileName = result[0].values[0][0] as string
+    const filePath = join(templateDir, fileName)
+
+    if (!existsSync(filePath)) {
+        return c.html('<html><body><h1>模板文件不存在</h1></body></html>', 404)
+    }
+
+    const htmlContent = readFileSync(filePath, 'utf-8')
+    return c.html(htmlContent)
+})
+
 app.get('/api/cardkeys/verify/:key', async (c) => {
     const key = c.req.param('key')
     const { getDb } = await import('./db')
