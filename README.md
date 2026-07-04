@@ -177,7 +177,7 @@ npm install
 npm install -g pm2
 
 # 3. 启动服务
-pm2 start deploy/ecosystem.config.cjs
+pm2 start ecosystem.config.cjs
 
 # 4. 设置开机自启
 pm2 startup
@@ -218,3 +218,54 @@ deploy/
 # 拉取最新代码后只需重启
 pm2 restart wrap-server
 ```
+
+## Nginx 反向代理
+
+使用 Nginx 将外部请求代理到本地 3000 端口的后端服务。
+
+### 配置文件
+
+项目中已提供 `nginx.conf`，核心配置如下：
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+### 使用步骤
+
+```bash
+# 1. 修改 nginx.conf 中的 server_name 为实际域名或 IP
+#    例如：server_name api.example.com;
+
+# 2. 将配置复制到 Nginx 站点目录（以 Linux 为例）
+sudo cp nginx.conf /etc/nginx/sites-available/wrapserver
+sudo ln -s /etc/nginx/sites-available/wrapserver /etc/nginx/sites-enabled/
+
+# 3. 测试配置是否正确
+sudo nginx -t
+
+# 4. 重载 Nginx
+sudo nginx -s reload
+```
+
+如需 HTTPS，推荐使用 Certbot 自动申请证书：
+
+```bash
+sudo certbot --nginx -d your-domain.com
+```
+
+配置完成后，外部请求会通过 Nginx 代理到 `http://127.0.0.1:3000` 的 WrapServer 服务。
