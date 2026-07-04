@@ -201,11 +201,7 @@ export async function initDatabase() {
         )
 
         const adminPerms = JSON.stringify([
-            'dashboard',
-            'user',
-            'user:add',
-            'user:edit',
-            'user:delete',
+            'dashboard:system',
             'project',
             'project:add',
             'project:edit',
@@ -214,9 +210,7 @@ export async function initDatabase() {
             'cardkey:add',
             'cardkey:edit',
             'cardkey:delete',
-            'template',
-            'template:add',
-            'template:delete',
+            'template:preview',
         ])
         const operatorPerms = JSON.stringify([
             'dashboard',
@@ -233,7 +227,11 @@ export async function initDatabase() {
         )
         database.run(
             'INSERT INTO roles (name, description, permissions) VALUES (?, ?, ?)',
-            ['普通管理员', '拥有除角色管理外的所有权限', adminPerms],
+            [
+                '普通管理员',
+                '系统信息、项目管理、卡密管理、模板预览',
+                adminPerms,
+            ],
         )
         database.run(
             'INSERT INTO roles (name, description, permissions) VALUES (?, ?, ?)',

@@ -123,10 +123,9 @@ cardkeys.post('/', async (c) => {
             usedBy || null,
         ],
     )
-    saveDb()
-
     const result = db.exec('SELECT last_insert_rowid()')
     const id = result[0].values[0][0]
+    saveDb()
 
     return c.json({ message: '创建成功', id })
 })

@@ -94,10 +94,9 @@ templates.post('/', async (c) => {
         'INSERT INTO templates (name, html_content, file_name) VALUES (?, ?, ?)',
         [name, randomFileName, randomFileName],
     )
-    saveDb()
-
     const result = db.exec('SELECT last_insert_rowid()')
     const id = result[0].values[0][0]
+    saveDb()
 
     return c.json({ message: '创建成功', id })
 })

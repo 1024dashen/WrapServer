@@ -89,10 +89,9 @@ projects.post('/', async (c) => {
         'INSERT INTO projects (user_id, template_id, name, url, status) VALUES (?, ?, ?, ?, ?)',
         [jwtUser.id, template_id || null, name, url, status || 'active'],
     )
-    saveDb()
-
     const result = db.exec('SELECT last_insert_rowid()')
     const id = result[0].values[0][0]
+    saveDb()
 
     return c.json({ message: '创建成功', id })
 })
