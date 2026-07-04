@@ -31,8 +31,9 @@ app.use(
 app.route('/api/auth', auth)
 
 // Template preview - public access (button visibility controlled by frontend permission)
-app.get('/api/templates/preview/:id', async (c) => {
+app.get('/api/templates/preview/:id/:projectId', async (c) => {
     const id = c.req.param('id')
+    const projectId = c.req.param('projectId')
     const { getDb } = await import('./db')
     const { join } = await import('path')
     const { existsSync, readFileSync } = await import('fs')
@@ -51,7 +52,10 @@ app.get('/api/templates/preview/:id', async (c) => {
         return c.html('<html><body><h1>模板文件不存在</h1></body></html>', 404)
     }
 
-    const htmlContent = readFileSync(filePath, 'utf-8')
+    let htmlContent = readFileSync(filePath, 'utf-8')
+    // Inject project_id into template so it can be accessed via window.__PROJECT_ID__
+    const injectScript = `<script>window.__PROJECT_ID__="${projectId}";</script>`
+    htmlContent = htmlContent.replace(/<head>/, `<head>${injectScript}`)
     return c.html(htmlContent)
 })
 
