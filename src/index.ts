@@ -108,6 +108,20 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
         return c.json({ valid: false, error: '卡密不属于当前项目' }, 400)
     }
 
+    // Check if project is disabled
+    if (projectId) {
+        const projectResult = db.exec(
+            'SELECT status FROM projects WHERE id = ?',
+            [projectId],
+        )
+        if (projectResult.length > 0 && projectResult[0].values.length > 0) {
+            const projectStatus = projectResult[0].values[0][0] as string
+            if (projectStatus === 'disabled') {
+                return c.json({ valid: false, error: '项目已被禁用' }, 400)
+            }
+        }
+    }
+
     // Check if card key is disabled
     if (cardKey.status === 'disabled') {
         return c.json({ valid: false, error: '卡密已被禁用' }, 400)
