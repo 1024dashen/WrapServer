@@ -109,6 +109,13 @@ export async function initDatabase() {
         // Column already exists
     }
 
+    // Add used_at column to existing card_keys table if missing
+    try {
+        database.run('ALTER TABLE card_keys ADD COLUMN used_at TEXT')
+    } catch (_) {
+        // Column already exists
+    }
+
     // Templates table
     database.run(`
     CREATE TABLE IF NOT EXISTS templates (

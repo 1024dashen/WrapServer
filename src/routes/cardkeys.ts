@@ -33,11 +33,20 @@ function mapRow(columns: string[], values: any[]): any {
 // Get card keys by project id
 cardkeys.get('/project/:projectId', async (c) => {
     const projectId = c.req.param('projectId')
+    const page = parseInt(c.req.query('page') || '1')
+    const pageSize = parseInt(c.req.query('pageSize') || '10')
+    const offset = (page - 1) * pageSize
     const db = await getDb()
 
-    const result = db.exec(
-        'SELECT * FROM card_keys WHERE project_id = ? ORDER BY id DESC',
+    const countResult = db.exec(
+        'SELECT COUNT(*) FROM card_keys WHERE project_id = ?',
         [projectId],
+    )
+    const total = countResult[0]?.values[0]?.[0] || 0
+
+    const result = db.exec(
+        'SELECT * FROM card_keys WHERE project_id = ? ORDER BY id DESC LIMIT ? OFFSET ?',
+        [projectId, pageSize, offset],
     )
 
     const cardKeys =
@@ -47,7 +56,7 @@ cardkeys.get('/project/:projectId', async (c) => {
               )
             : []
 
-    return c.json({ cardKeys })
+    return c.json({ cardKeys, total })
 })
 
 // Get all card keys
@@ -173,6 +182,7 @@ cardkeys.put('/:id', async (c) => {
         deviceId,
         expireAt,
         usedBy,
+        usedAt,
     } = body
 
     const db = await getDb()
@@ -212,6 +222,14 @@ cardkeys.put('/:id', async (c) => {
     if (usedBy !== undefined) {
         updates.push('used_by = ?')
         values.push(usedBy)
+    }
+    if (usedAt !== undefined) {
+        updates.push('used_at = ?')
+        values.push(usedAt)
+    }
+    // Auto-set used_at when status changes to 'used'
+    if (status === 'used' && usedAt === undefined) {
+        updates.push("used_at = datetime('now')")
     }
 
     if (updates.length > 0) {
