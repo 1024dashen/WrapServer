@@ -70,6 +70,8 @@ export async function initDatabase() {
       status TEXT NOT NULL DEFAULT 'unused',
       duration INTEGER,
       remark TEXT,
+      one_device_one_code INTEGER DEFAULT 0,
+      device_id TEXT,
       expire_at TEXT,
       used_by TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -87,6 +89,22 @@ export async function initDatabase() {
     // Add remark column to existing card_keys table if missing
     try {
         database.run('ALTER TABLE card_keys ADD COLUMN remark TEXT')
+    } catch (_) {
+        // Column already exists
+    }
+
+    // Add one_device_one_code column to existing card_keys table if missing
+    try {
+        database.run(
+            'ALTER TABLE card_keys ADD COLUMN one_device_one_code INTEGER DEFAULT 0',
+        )
+    } catch (_) {
+        // Column already exists
+    }
+
+    // Add device_id column to existing card_keys table if missing
+    try {
+        database.run('ALTER TABLE card_keys ADD COLUMN device_id TEXT')
     } catch (_) {
         // Column already exists
     }

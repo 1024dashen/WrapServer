@@ -12,6 +12,24 @@ function generateKey(): string {
     return result
 }
 
+function toCamelCase(str: string): string {
+    return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+}
+
+function mapRow(columns: string[], values: any[]): any {
+    const obj: any = {}
+    columns.forEach((col, i) => {
+        const key = toCamelCase(col)
+        // Convert integer boolean fields back to boolean
+        if (col === 'one_device_one_code') {
+            obj[key] = !!values[i]
+        } else {
+            obj[key] = values[i]
+        }
+    })
+    return obj
+}
+
 // Get card keys by project id
 cardkeys.get('/project/:projectId', async (c) => {
     const projectId = c.req.param('projectId')
@@ -24,13 +42,9 @@ cardkeys.get('/project/:projectId', async (c) => {
 
     const cardKeys =
         result.length > 0
-            ? result[0].values.map((row) => {
-                  const obj: any = {}
-                  result[0].columns.forEach((col, i) => {
-                      obj[col] = row[i]
-                  })
-                  return obj
-              })
+            ? result[0].values.map((row: any[]) =>
+                  mapRow(result[0].columns, row),
+              )
             : []
 
     return c.json({ cardKeys })
@@ -43,13 +57,9 @@ cardkeys.get('/', async (c) => {
 
     const cardKeys =
         result.length > 0
-            ? result[0].values.map((row) => {
-                  const obj: any = {}
-                  result[0].columns.forEach((col, i) => {
-                      obj[col] = row[i]
-                  })
-                  return obj
-              })
+            ? result[0].values.map((row: any[]) =>
+                  mapRow(result[0].columns, row),
+              )
             : []
 
     return c.json({ cardKeys })
@@ -65,12 +75,7 @@ cardkeys.get('/:id', async (c) => {
         return c.json({ error: '卡密不存在' }, 404)
     }
 
-    const columns = result[0].columns
-    const values = result[0].values[0]
-    const cardKey: any = {}
-    columns.forEach((col, i) => {
-        cardKey[col] = values[i]
-    })
+    const cardKey = mapRow(result[0].columns, result[0].values[0])
 
     return c.json({ cardKey })
 })
@@ -78,8 +83,17 @@ cardkeys.get('/:id', async (c) => {
 // Create single card key
 cardkeys.post('/', async (c) => {
     const body = await c.req.json()
-    const { projectId, key, type, status, duration, remark, expireAt, usedBy } =
-        body
+    const {
+        projectId,
+        key,
+        type,
+        status,
+        duration,
+        remark,
+        oneDeviceOneCode,
+        expireAt,
+        usedBy,
+    } = body
 
     if (!projectId || !key || !type) {
         return c.json({ error: '请填写完整信息' }, 400)
@@ -87,7 +101,7 @@ cardkeys.post('/', async (c) => {
 
     const db = await getDb()
     db.run(
-        'INSERT INTO card_keys (project_id, key, type, status, duration, remark, expire_at, used_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO card_keys (project_id, key, type, status, duration, remark, one_device_one_code, expire_at, used_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             projectId,
             key,
@@ -95,6 +109,7 @@ cardkeys.post('/', async (c) => {
             status || 'unused',
             duration ?? null,
             remark || null,
+            oneDeviceOneCode ? 1 : 0,
             expireAt || null,
             usedBy || null,
         ],
@@ -110,7 +125,15 @@ cardkeys.post('/', async (c) => {
 // Batch generate card keys
 cardkeys.post('/batch', async (c) => {
     const body = await c.req.json()
-    const { projectId, type, count, status, duration, remark } = body
+    const {
+        projectId,
+        type,
+        count,
+        status,
+        duration,
+        remark,
+        oneDeviceOneCode,
+    } = body
 
     if (!projectId || !type || !count) {
         return c.json({ error: '请填写完整信息' }, 400)
@@ -121,7 +144,7 @@ cardkeys.post('/batch', async (c) => {
     for (let i = 0; i < count; i++) {
         const key = generateKey()
         db.run(
-            'INSERT INTO card_keys (project_id, key, type, status, duration, remark) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO card_keys (project_id, key, type, status, duration, remark, one_device_one_code) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
                 projectId,
                 key,
@@ -129,6 +152,7 @@ cardkeys.post('/batch', async (c) => {
                 status || 'unused',
                 duration ?? null,
                 remark || null,
+                oneDeviceOneCode ? 1 : 0,
             ],
         )
     }
@@ -141,7 +165,15 @@ cardkeys.post('/batch', async (c) => {
 cardkeys.put('/:id', async (c) => {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const { status, duration, remark, expireAt, usedBy } = body
+    const {
+        status,
+        duration,
+        remark,
+        oneDeviceOneCode,
+        deviceId,
+        expireAt,
+        usedBy,
+    } = body
 
     const db = await getDb()
 
@@ -164,6 +196,14 @@ cardkeys.put('/:id', async (c) => {
     if (remark !== undefined) {
         updates.push('remark = ?')
         values.push(remark)
+    }
+    if (oneDeviceOneCode !== undefined) {
+        updates.push('one_device_one_code = ?')
+        values.push(oneDeviceOneCode ? 1 : 0)
+    }
+    if (deviceId !== undefined) {
+        updates.push('device_id = ?')
+        values.push(deviceId)
     }
     if (expireAt !== undefined) {
         updates.push('expire_at = ?')
