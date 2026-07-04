@@ -157,6 +157,7 @@ projects.delete('/:id', async (c) => {
         return c.json({ error: '项目不存在或无权操作' }, 404)
     }
 
+    db.run('DELETE FROM card_keys WHERE project_id = ?', [id])
     db.run('DELETE FROM projects WHERE id = ?', [id])
     saveDb()
     return c.json({ message: '删除成功' })
