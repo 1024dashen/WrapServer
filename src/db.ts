@@ -41,7 +41,7 @@ export async function initDatabase() {
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT '运营人员',
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
     )
   `)
 
@@ -54,7 +54,7 @@ export async function initDatabase() {
       name TEXT NOT NULL,
       url TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL
     )
@@ -74,7 +74,7 @@ export async function initDatabase() {
       device_id TEXT,
       expire_at TEXT,
       used_by TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     )
   `)
@@ -123,7 +123,7 @@ export async function initDatabase() {
       name TEXT NOT NULL,
       html_content TEXT NOT NULL,
       file_name TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
     )
   `)
 

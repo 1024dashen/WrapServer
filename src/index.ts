@@ -139,7 +139,7 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
         const updateValues: any[] = [cardKey.id]
         const updateParts: string[] = [
             "status = 'used'",
-            "used_at = datetime('now')",
+            "used_at = datetime('now', '+8 hours')",
         ]
         if (deviceId) {
             updateParts.push('device_id = ?')

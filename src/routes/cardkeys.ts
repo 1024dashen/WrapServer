@@ -229,7 +229,7 @@ cardkeys.put('/:id', async (c) => {
     }
     // Auto-set used_at when status changes to 'used'
     if (status === 'used' && usedAt === undefined) {
-        updates.push("used_at = datetime('now')")
+        updates.push("used_at = datetime('now', '+8 hours')")
     }
 
     if (updates.length > 0) {
