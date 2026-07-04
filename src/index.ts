@@ -61,6 +61,8 @@ app.get('/api/templates/preview/:id/:projectId', async (c) => {
 
 app.get('/api/cardkeys/verify/:key', async (c) => {
     const key = c.req.param('key')
+    const projectId = c.req.query('project_id')
+    const deviceId = c.req.query('device_id')
     const { getDb } = await import('./db')
     const db = await getDb()
 
@@ -77,6 +79,16 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
         cardKey[col] = values[i]
     })
 
+    // Check if card key belongs to the specified project
+    if (projectId && String(cardKey.project_id) !== String(projectId)) {
+        return c.json({ valid: false, error: '卡密不属于当前项目' }, 400)
+    }
+
+    // Check if card key is disabled
+    if (cardKey.status === 'disabled') {
+        return c.json({ valid: false, error: '卡密已被禁用' }, 400)
+    }
+
     // Check if card key is expired
     if (cardKey.status === 'expired') {
         return c.json({ valid: false, error: '卡密已过期' }, 400)
@@ -91,11 +103,49 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
         }
     }
 
+    // One device one code check
+    if (cardKey.one_device_one_code && cardKey.device_id) {
+        if (deviceId && cardKey.device_id !== deviceId) {
+            return c.json({ valid: false, error: '该卡密已绑定其他设备' }, 400)
+        }
+    }
+
+    // Mark card key as used and bind device_id if it was unused
+    if (cardKey.status === 'unused') {
+        const updateValues: any[] = [cardKey.id]
+        const updateParts: string[] = [
+            "status = 'used'",
+            "used_at = datetime('now')",
+        ]
+        if (deviceId) {
+            updateParts.push('device_id = ?')
+            updateValues.unshift(deviceId)
+        }
+        db.run(
+            `UPDATE card_keys SET ${updateParts.join(', ')} WHERE id = ?`,
+            updateValues,
+        )
+        const { saveDb } = await import('./db')
+        saveDb()
+    }
+
+    // Get project URL
+    let projectUrl = null
+    if (projectId) {
+        const projectResult = db.exec('SELECT url FROM projects WHERE id = ?', [
+            projectId,
+        ])
+        if (projectResult.length > 0 && projectResult[0].values.length > 0) {
+            projectUrl = projectResult[0].values[0][0] as string
+        }
+    }
+
     return c.json({
         valid: true,
         type: cardKey.type,
         expireAt: cardKey.expire_at,
         status: cardKey.status,
+        projectUrl,
     })
 })
 
