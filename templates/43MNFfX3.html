@@ -163,6 +163,60 @@
             }
             const deviceId = getDeviceId()
 
+            // Save verification result to localStorage (keyed by projectId)
+            function saveAuth(projectUrl, expireAt) {
+                if (!projectId) return
+                const authData = {
+                    projectUrl,
+                    expireAt: expireAt || null,
+                    deviceId,
+                    verifiedAt: new Date().toISOString(),
+                }
+                localStorage.setItem(
+                    `proxy_auth_${projectId}`,
+                    JSON.stringify(authData),
+                )
+            }
+
+            // Check if there is a valid (non-expired) auth for current project
+            function checkSavedAuth() {
+                if (!projectId) return null
+                try {
+                    const raw = localStorage.getItem(`proxy_auth_${projectId}`)
+                    if (!raw) return null
+                    const authData = JSON.parse(raw)
+                    // Must match current device
+                    if (authData.deviceId !== deviceId) return null
+                    // Must have a project URL
+                    if (!authData.projectUrl) return null
+                    // Check expiry
+                    if (authData.expireAt) {
+                        const expireDate = new Date(authData.expireAt)
+                        if (expireDate < new Date()) {
+                            // Expired, remove saved auth
+                            localStorage.removeItem(`proxy_auth_${projectId}`)
+                            return null
+                        }
+                    }
+                    return authData
+                } catch (_) {
+                    return null
+                }
+            }
+
+            // Show project URL in iframe
+            function showProject(projectUrl) {
+                iframe.src = projectUrl
+                overlay.style.display = 'none'
+                content.style.display = 'block'
+            }
+
+            // On load: check saved auth first
+            const savedAuth = checkSavedAuth()
+            if (savedAuth) {
+                showProject(savedAuth.projectUrl)
+            }
+
             async function verify() {
                 const key = input.value.trim()
                 if (!key) {
@@ -203,6 +257,9 @@
                         return
                     }
 
+                    // Save auth result for next visit
+                    saveAuth(data.projectUrl, data.expireAt)
+
                     // Show expiry info if available
                     if (data.expireAt) {
                         const expireDate = new Date(data.expireAt)
@@ -219,9 +276,7 @@
                     }
 
                     // Load project URL in iframe
-                    iframe.src = data.projectUrl
-                    overlay.style.display = 'none'
-                    content.style.display = 'block'
+                    showProject(data.projectUrl)
                 } catch (e) {
                     errorMsg.textContent = '网络异常，请稍后重试'
                     btn.disabled = false
@@ -234,8 +289,10 @@
                 if (e.key === 'Enter') verify()
             })
 
-            // Auto focus input
-            input.focus()
+            // Auto focus input (only if auth overlay is visible)
+            if (overlay.style.display !== 'none') {
+                input.focus()
+            }
         </script>
     </body>
 </html>
