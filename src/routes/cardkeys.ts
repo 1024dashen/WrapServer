@@ -257,6 +257,22 @@ cardkeys.post('/batch-delete', async (c) => {
     return c.json({ message: `已删除 ${ids.length} 条卡密` })
 })
 
+cardkeys.post('/batch-update-remark', async (c) => {
+    const { ids, remark } = await c.req.json()
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return c.json({ error: '请选择要修改的卡密' }, 400)
+    }
+
+    const db = await getDb()
+    const placeholders = ids.map(() => '?').join(',')
+    db.run(`UPDATE card_keys SET remark = ? WHERE id IN (${placeholders})`, [
+        remark ?? '',
+        ...ids,
+    ])
+    saveDb()
+    return c.json({ message: `已修改 ${ids.length} 条卡密备注` })
+})
+
 cardkeys.delete('/:id', async (c) => {
     const id = c.req.param('id')
     const db = await getDb()
