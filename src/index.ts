@@ -150,15 +150,27 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
 
     // Mark card key as used and bind device_id if it was unused
     if (cardKey.status === 'unused') {
-        const updateValues: any[] = [cardKey.id]
         const updateParts: string[] = [
             "status = 'used'",
             "used_at = datetime('now', '+8 hours')",
         ]
+        const updateValues: any[] = []
+
         if (deviceId) {
             updateParts.push('device_id = ?')
-            updateValues.unshift(deviceId)
+            updateValues.push(deviceId)
         }
+        // Calculate expire_at from duration if not already set
+        if (!cardKey.expire_at && cardKey.duration) {
+            const durationSec = Number(cardKey.duration)
+            if (durationSec > 0) {
+                const expireDate = new Date(Date.now() + durationSec * 1000)
+                updateParts.push('expire_at = ?')
+                updateValues.push(expireDate.toISOString())
+            }
+        }
+
+        updateValues.push(cardKey.id)
         db.run(
             `UPDATE card_keys SET ${updateParts.join(', ')} WHERE id = ?`,
             updateValues,
@@ -178,10 +190,22 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
         }
     }
 
+    // Re-read expire_at in case it was just computed
+    let finalExpireAt = cardKey.expire_at
+    if (!finalExpireAt && cardKey.duration) {
+        const refreshed = db.exec(
+            'SELECT expire_at FROM card_keys WHERE id = ?',
+            [cardKey.id],
+        )
+        if (refreshed.length > 0 && refreshed[0].values.length > 0) {
+            finalExpireAt = refreshed[0].values[0][0]
+        }
+    }
+
     return c.json({
         valid: true,
         type: cardKey.type,
-        expireAt: cardKey.expire_at,
+        expireAt: finalExpireAt,
         status: cardKey.status,
         projectUrl,
     })
