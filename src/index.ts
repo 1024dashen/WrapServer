@@ -298,6 +298,21 @@ app.get('/health', (c) => {
     return c.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// Serve prohtmls static files (uploaded project HTML files)
+app.get('/prohtmls/:filename', async (c) => {
+    const filename = c.req.param('filename')
+    const { join } = await import('path')
+    const { existsSync, readFileSync } = await import('fs')
+    const filePath = join(process.cwd(), 'prohtmls', filename)
+
+    if (!existsSync(filePath)) {
+        return c.text('文件不存在', 404)
+    }
+
+    const htmlContent = readFileSync(filePath, 'utf-8')
+    return c.html(htmlContent)
+})
+
 // Start server
 const port = 3000
 serve(

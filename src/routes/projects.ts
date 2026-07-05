@@ -1,7 +1,53 @@
 import { Hono } from 'hono'
 import { getDb, saveDb } from '../db'
+import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs'
+import { join, extname } from 'path'
 
 const projects = new Hono()
+
+const PROHTMLS_DIR = join(process.cwd(), 'prohtmls')
+
+function randomString(len: number): string {
+    const chars =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    let result = ''
+    for (let i = 0; i < len; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)]
+    }
+    return result
+}
+
+// Upload HTML file for project
+projects.post('/upload', async (c) => {
+    const body = await c.req.parseBody()
+    const file = body['file']
+
+    if (!file || !(file instanceof File)) {
+        return c.json({ error: '请上传 HTML 文件' }, 400)
+    }
+
+    if (!file.name.toLowerCase().endsWith('.html')) {
+        return c.json({ error: '仅支持上传 .html 文件' }, 400)
+    }
+
+    // Ensure prohtmls directory exists
+    if (!existsSync(PROHTMLS_DIR)) {
+        mkdirSync(PROHTMLS_DIR, { recursive: true })
+    }
+
+    const ext = extname(file.name)
+    const uniqueName = `${randomString(6)}${ext}`
+    const filePath = join(PROHTMLS_DIR, uniqueName)
+
+    const arrayBuffer = await file.arrayBuffer()
+    writeFileSync(filePath, Buffer.from(arrayBuffer))
+
+    // Build accessible URL
+    const baseUrl = `${c.req.url.replace(/\/api\/projects\/upload.*/, '')}`
+    const accessUrl = `${baseUrl}/prohtmls/${uniqueName}`
+
+    return c.json({ url: accessUrl, fileName: uniqueName })
+})
 
 // Get all projects with card key count (only for current user)
 projects.get('/', async (c) => {
@@ -78,7 +124,7 @@ projects.get('/:id', async (c) => {
 projects.post('/', async (c) => {
     const jwtUser = (c as any).get('user') as any
     const body = await c.req.json()
-    const { name, url, status, template_id } = body
+    const { name, url, status, template_id, type } = body
 
     if (!name || !url) {
         return c.json({ error: '请填写完整信息' }, 400)
@@ -86,8 +132,15 @@ projects.post('/', async (c) => {
 
     const db = await getDb()
     db.run(
-        'INSERT INTO projects (user_id, template_id, name, url, status) VALUES (?, ?, ?, ?, ?)',
-        [jwtUser.id, template_id || null, name, url, status || 'active'],
+        'INSERT INTO projects (user_id, template_id, name, url, type, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [
+            jwtUser.id,
+            template_id || null,
+            name,
+            url,
+            type || 'url',
+            status || 'active',
+        ],
     )
     const result = db.exec('SELECT last_insert_rowid()')
     const id = result[0].values[0][0]
@@ -101,7 +154,7 @@ projects.put('/:id', async (c) => {
     const jwtUser = (c as any).get('user') as any
     const id = c.req.param('id')
     const body = await c.req.json()
-    const { name, url, status, template_id } = body
+    const { name, url, status, template_id, type } = body
 
     const db = await getDb()
 
@@ -132,6 +185,10 @@ projects.put('/:id', async (c) => {
         updates.push('template_id = ?')
         values.push(template_id)
     }
+    if (type) {
+        updates.push('type = ?')
+        values.push(type)
+    }
 
     if (updates.length > 0) {
         values.push(id)
@@ -149,11 +206,24 @@ projects.delete('/:id', async (c) => {
     const db = await getDb()
 
     const project = db.exec(
-        'SELECT id FROM projects WHERE id = ? AND user_id = ?',
+        'SELECT id, url, type FROM projects WHERE id = ? AND user_id = ?',
         [id, jwtUser.id],
     )
     if (project.length === 0 || project[0].values.length === 0) {
         return c.json({ error: '项目不存在或无权操作' }, 404)
+    }
+
+    const [, projUrl, projType] = project[0].values[0]
+
+    // Delete associated HTML file if this is an html project
+    if (projType === 'html' && projUrl) {
+        const fileName = (projUrl as string).split('/').pop()
+        if (fileName) {
+            const filePath = join(PROHTMLS_DIR, fileName)
+            if (existsSync(filePath)) {
+                unlinkSync(filePath)
+            }
+        }
     }
 
     db.run('DELETE FROM card_keys WHERE project_id = ?', [id])

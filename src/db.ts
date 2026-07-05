@@ -53,6 +53,7 @@ export async function initDatabase() {
       template_id INTEGER,
       name TEXT NOT NULL,
       url TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'url',
       status TEXT NOT NULL DEFAULT 'active',
       created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -112,6 +113,15 @@ export async function initDatabase() {
     // Add used_at column to existing card_keys table if missing
     try {
         database.run('ALTER TABLE card_keys ADD COLUMN used_at TEXT')
+    } catch (_) {
+        // Column already exists
+    }
+
+    // Add type column to existing projects table if missing
+    try {
+        database.run(
+            "ALTER TABLE projects ADD COLUMN type TEXT NOT NULL DEFAULT 'url'",
+        )
     } catch (_) {
         // Column already exists
     }
