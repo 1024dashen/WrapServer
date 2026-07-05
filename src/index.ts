@@ -211,6 +211,59 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
     })
 })
 
+// Lightweight check: is there a valid card key bound to this device + project?
+app.get('/api/cardkeys/check', async (c) => {
+    const projectId = c.req.query('project_id')
+    const deviceId = c.req.query('device_id')
+    if (!projectId || !deviceId) {
+        return c.json({ valid: false })
+    }
+
+    const { getDb } = await import('./db')
+    const db = await getDb()
+
+    // Find card key bound to this device for this project
+    const result = db.exec(
+        'SELECT * FROM card_keys WHERE project_id = ? AND device_id = ? LIMIT 1',
+        [projectId, deviceId],
+    )
+    if (result.length === 0 || result[0].values.length === 0) {
+        return c.json({ valid: false })
+    }
+
+    const columns = result[0].columns
+    const values = result[0].values[0]
+    const cardKey: any = {}
+    columns.forEach((col: string, i: number) => {
+        cardKey[col] = values[i]
+    })
+
+    // Check project status
+    const projResult = db.exec('SELECT status FROM projects WHERE id = ?', [
+        projectId,
+    ])
+    if (projResult.length > 0 && projResult[0].values.length > 0) {
+        if ((projResult[0].values[0][0] as string) === 'disabled') {
+            return c.json({ valid: false })
+        }
+    }
+
+    // Card must be used status (unused means unbound)
+    if (cardKey.status !== 'used') {
+        return c.json({ valid: false })
+    }
+
+    // Check expiry
+    if (cardKey.expire_at) {
+        const expireDate = new Date(cardKey.expire_at)
+        if (expireDate < new Date()) {
+            return c.json({ valid: false })
+        }
+    }
+
+    return c.json({ valid: true, expireAt: cardKey.expire_at || null })
+})
+
 // Protected routes - auth required
 app.use('/api/users', authMiddleware)
 app.use('/api/users/*', authMiddleware)

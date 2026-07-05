@@ -178,29 +178,51 @@
                 )
             }
 
-            // Check if there is a valid (non-expired) auth for current project
-            function checkSavedAuth() {
+            // Clear saved auth for current project
+            function clearAuth() {
+                if (projectId) {
+                    localStorage.removeItem(`proxy_auth_${projectId}`)
+                }
+            }
+
+            // Local-only check: returns cached authData if present and not expired
+            function getLocalAuth() {
                 if (!projectId) return null
                 try {
                     const raw = localStorage.getItem(`proxy_auth_${projectId}`)
                     if (!raw) return null
                     const authData = JSON.parse(raw)
-                    // Must match current device
                     if (authData.deviceId !== deviceId) return null
-                    // Must have a project URL
                     if (!authData.projectUrl) return null
-                    // Check expiry
                     if (authData.expireAt) {
                         const expireDate = new Date(authData.expireAt)
                         if (expireDate < new Date()) {
-                            // Expired, remove saved auth
-                            localStorage.removeItem(`proxy_auth_${projectId}`)
+                            clearAuth()
                             return null
                         }
                     }
                     return authData
                 } catch (_) {
                     return null
+                }
+            }
+
+            // Server-side check: verify device binding is still valid
+            async function serverCheckAuth() {
+                if (!projectId || !deviceId) return false
+                try {
+                    const params = new URLSearchParams({
+                        project_id: projectId,
+                        device_id: deviceId,
+                    })
+                    const res = await fetch(
+                        `${API_BASE}/api/cardkeys/check?${params}`,
+                    )
+                    const data = await res.json()
+                    return !!data.valid
+                } catch (_) {
+                    // On network error, allow cached auth (fail-open)
+                    return true
                 }
             }
 
@@ -211,11 +233,34 @@
                 content.style.display = 'block'
             }
 
-            // On load: check saved auth first
-            const savedAuth = checkSavedAuth()
-            if (savedAuth) {
-                showProject(savedAuth.projectUrl)
+            // Show auth form (default state)
+            function showAuthForm() {
+                overlay.style.display = 'flex'
+                content.style.display = 'none'
+                btn.disabled = false
+                btn.textContent = '验 证'
             }
+
+            // On load: check saved auth + server revalidate
+            async function initAuth() {
+                const localAuth = getLocalAuth()
+                if (localAuth) {
+                    // Show content immediately for fast UX, then revalidate in background
+                    showProject(localAuth.projectUrl)
+
+                    const isValid = await serverCheckAuth()
+                    if (!isValid) {
+                        // Server says binding is gone — kick back to auth form
+                        clearAuth()
+                        iframe.src = ''
+                        showAuthForm()
+                    }
+                } else {
+                    showAuthForm()
+                }
+            }
+
+            initAuth()
 
             async function verify() {
                 const key = input.value.trim()
@@ -288,11 +333,6 @@
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') verify()
             })
-
-            // Auto focus input (only if auth overlay is visible)
-            if (overlay.style.display !== 'none') {
-                input.focus()
-            }
         </script>
     </body>
 </html>
