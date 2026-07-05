@@ -164,11 +164,12 @@
             const deviceId = getDeviceId()
 
             // Save verification result to localStorage (keyed by projectId)
-            function saveAuth(projectUrl, expireAt) {
+            function saveAuth(projectUrl, expireAt, htmlContent) {
                 if (!projectId) return
                 const authData = {
                     projectUrl,
                     expireAt: expireAt || null,
+                    htmlContent: htmlContent || null,
                     deviceId,
                     verifiedAt: new Date().toISOString(),
                 }
@@ -193,7 +194,8 @@
                     if (!raw) return null
                     const authData = JSON.parse(raw)
                     if (authData.deviceId !== deviceId) return null
-                    if (!authData.projectUrl) return null
+                    if (!authData.projectUrl && !authData.htmlContent)
+                        return null
                     if (authData.expireAt) {
                         const expireDate = new Date(authData.expireAt)
                         if (expireDate < new Date()) {
@@ -226,11 +228,19 @@
                 }
             }
 
-            // Show project URL in iframe
-            function showProject(projectUrl) {
-                iframe.src = projectUrl
-                overlay.style.display = 'none'
-                content.style.display = 'block'
+            // Show project: render HTML directly or load URL in iframe
+            function showProject(projectUrl, htmlContent) {
+                if (htmlContent) {
+                    // HTML project: replace entire page content
+                    document.open()
+                    document.write(htmlContent)
+                    document.close()
+                } else {
+                    // URL project: use iframe
+                    iframe.src = projectUrl
+                    overlay.style.display = 'none'
+                    content.style.display = 'block'
+                }
             }
 
             // Show auth form (default state)
@@ -246,7 +256,10 @@
                 const localAuth = getLocalAuth()
                 if (localAuth) {
                     // Show content immediately for fast UX, then revalidate in background
-                    showProject(localAuth.projectUrl)
+                    showProject(localAuth.projectUrl, localAuth.htmlContent)
+
+                    // Skip server recheck if HTML was rendered (page is already replaced)
+                    if (localAuth.htmlContent) return
 
                     const isValid = await serverCheckAuth()
                     if (!isValid) {
@@ -295,7 +308,7 @@
                         return
                     }
 
-                    if (!data.projectUrl) {
+                    if (!data.projectUrl && !data.htmlContent) {
                         errorMsg.textContent = '未获取到项目地址'
                         btn.disabled = false
                         btn.textContent = '验 证'
@@ -303,7 +316,7 @@
                     }
 
                     // Save auth result for next visit
-                    saveAuth(data.projectUrl, data.expireAt)
+                    saveAuth(data.projectUrl, data.expireAt, data.htmlContent)
 
                     // Show expiry info if available
                     if (data.expireAt) {
@@ -320,8 +333,8 @@
                         )
                     }
 
-                    // Load project URL in iframe
-                    showProject(data.projectUrl)
+                    // Load project: render HTML directly or use iframe
+                    showProject(data.projectUrl, data.htmlContent)
                 } catch (e) {
                     errorMsg.textContent = '网络异常，请稍后重试'
                     btn.disabled = false

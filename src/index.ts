@@ -179,14 +179,31 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
         saveDb()
     }
 
-    // Get project URL
+    // Get project URL and type
     let projectUrl = null
+    let projectType = 'url'
+    let htmlContent: string | null = null
     if (projectId) {
-        const projectResult = db.exec('SELECT url FROM projects WHERE id = ?', [
-            projectId,
-        ])
+        const projectResult = db.exec(
+            'SELECT url, type FROM projects WHERE id = ?',
+            [projectId],
+        )
         if (projectResult.length > 0 && projectResult[0].values.length > 0) {
             projectUrl = projectResult[0].values[0][0] as string
+            projectType = (projectResult[0].values[0][1] as string) || 'url'
+        }
+
+        // If HTML project, read file content directly
+        if (projectType === 'html' && projectUrl) {
+            const fileName = projectUrl.split('/').pop()
+            if (fileName) {
+                const { join } = await import('path')
+                const { existsSync, readFileSync } = await import('fs')
+                const filePath = join(process.cwd(), 'prohtmls', fileName)
+                if (existsSync(filePath)) {
+                    htmlContent = readFileSync(filePath, 'utf-8')
+                }
+            }
         }
     }
 
@@ -208,6 +225,8 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
         expireAt: finalExpireAt,
         status: cardKey.status,
         projectUrl,
+        projectType,
+        htmlContent,
     })
 })
 
