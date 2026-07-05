@@ -244,6 +244,19 @@ cardkeys.put('/:id', async (c) => {
 })
 
 // Delete card key
+cardkeys.post('/batch-delete', async (c) => {
+    const { ids } = await c.req.json()
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return c.json({ error: '请选择要删除的卡密' }, 400)
+    }
+
+    const db = await getDb()
+    const placeholders = ids.map(() => '?').join(',')
+    db.run(`DELETE FROM card_keys WHERE id IN (${placeholders})`, ids)
+    saveDb()
+    return c.json({ message: `已删除 ${ids.length} 条卡密` })
+})
+
 cardkeys.delete('/:id', async (c) => {
     const id = c.req.param('id')
     const db = await getDb()
