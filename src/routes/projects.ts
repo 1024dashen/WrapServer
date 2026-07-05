@@ -130,6 +130,12 @@ projects.post('/', async (c) => {
         return c.json({ error: '请填写完整信息' }, 400)
     }
 
+    // 若 URL 不以 http:// 或 https:// 开头，自动补全 http://
+    let normalizedUrl = url
+    if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = 'http://' + normalizedUrl
+    }
+
     const db = await getDb()
     db.run(
         'INSERT INTO projects (user_id, template_id, name, url, type, status) VALUES (?, ?, ?, ?, ?, ?)',
@@ -137,7 +143,7 @@ projects.post('/', async (c) => {
             jwtUser.id,
             template_id || null,
             name,
-            url,
+            normalizedUrl,
             type || 'url',
             status || 'active',
         ],
@@ -174,8 +180,13 @@ projects.put('/:id', async (c) => {
         values.push(name)
     }
     if (url) {
+        // 若 URL 不以 http:// 或 https:// 开头，自动补全 http://
+        let normalizedUrl = url
+        if (!/^https?:\/\//i.test(normalizedUrl)) {
+            normalizedUrl = 'http://' + normalizedUrl
+        }
         updates.push('url = ?')
-        values.push(url)
+        values.push(normalizedUrl)
     }
     if (status) {
         updates.push('status = ?')
