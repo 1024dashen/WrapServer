@@ -35,18 +35,28 @@ cardkeys.get('/project/:projectId', async (c) => {
     const projectId = c.req.param('projectId')
     const page = parseInt(c.req.query('page') || '1')
     const pageSize = parseInt(c.req.query('pageSize') || '10')
+    const search = (c.req.query('search') || '').trim()
     const offset = (page - 1) * pageSize
     const db = await getDb()
 
+    let whereClause = 'WHERE project_id = ?'
+    const params: any[] = [projectId]
+
+    if (search) {
+        whereClause += ' AND (key LIKE ? OR remark LIKE ? OR device_id LIKE ?)'
+        const like = `%${search}%`
+        params.push(like, like, like)
+    }
+
     const countResult = db.exec(
-        'SELECT COUNT(*) FROM card_keys WHERE project_id = ?',
-        [projectId],
+        `SELECT COUNT(*) FROM card_keys ${whereClause}`,
+        params,
     )
     const total = countResult[0]?.values[0]?.[0] || 0
 
     const result = db.exec(
-        'SELECT * FROM card_keys WHERE project_id = ? ORDER BY id DESC LIMIT ? OFFSET ?',
-        [projectId, pageSize, offset],
+        `SELECT * FROM card_keys ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+        [...params, pageSize, offset],
     )
 
     const cardKeys =
