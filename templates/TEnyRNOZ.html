@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>卡密验证</title>
+        <style>
+            * {
+                padding: 0;
+                margin: 0;
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                font-family:
+                    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                    sans-serif;
+            }
+
+            /* 卡密验证界面 */
+            #auth-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(
+                    135deg,
+                    #1a1a2e 0%,
+                    #16213e 50%,
+                    #0f3460 100%
+                );
+            }
+            .auth-card {
+                background: rgba(255, 255, 255, 0.08);
+                -webkit-backdrop-filter: blur(12px);
+                backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 16px;
+                padding: 40px 36px;
+                width: 380px;
+                text-align: center;
+                color: #fff;
+            }
+            .auth-card h2 {
+                font-size: 22px;
+                margin-bottom: 8px;
+            }
+            .auth-card p {
+                font-size: 13px;
+                color: rgba(255, 255, 255, 0.6);
+                margin-bottom: 28px;
+            }
+            .auth-card input {
+                width: 100%;
+                padding: 12px 16px;
+                font-size: 15px;
+                border: 1px solid rgba(255, 255, 255, 0.25);
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.1);
+                color: #fff;
+                outline: none;
+                transition: border-color 0.2s;
+            }
+            .auth-card input::placeholder {
+                color: rgba(255, 255, 255, 0.4);
+            }
+            .auth-card input:focus {
+                border-color: #e94560;
+            }
+            .auth-card button {
+                margin-top: 18px;
+                width: 100%;
+                padding: 12px;
+                font-size: 15px;
+                font-weight: 600;
+                color: #fff;
+                background: #e94560;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .auth-card button:hover {
+                background: #c73650;
+            }
+            .auth-card button:disabled {
+                background: #888;
+                cursor: not-allowed;
+            }
+            .auth-error {
+                margin-top: 12px;
+                font-size: 13px;
+                color: #ff6b6b;
+                min-height: 18px;
+            }
+
+            /* iframe 容器 */
+            #content-frame {
+                display: none;
+                width: 100%;
+                height: 100%;
+            }
+            #content-frame iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- 卡密验证界面 -->
+        <div id="auth-overlay">
+            <div class="auth-card">
+                <h2>🔑 卡密验证</h2>
+                <p>请输入您的卡密以继续访问</p>
+                <input
+                    type="text"
+                    id="key-input"
+                    placeholder="请输入卡密"
+                    autocomplete="off"
+                />
+                <button id="verify-btn">验 证</button>
+                <div class="auth-error" id="error-msg"></div>
+            </div>
+        </div>
+
+        <!-- 代理内容区 -->
+        <div id="content-frame">
+            <iframe id="proxy-iframe" allowfullscreen></iframe>
+        </div>
+
+        <script>
+            const API_BASE = window.location.origin
+            const overlay = document.getElementById('auth-overlay')
+            const content = document.getElementById('content-frame')
+            const input = document.getElementById('key-input')
+            const btn = document.getElementById('verify-btn')
+            const errorMsg = document.getElementById('error-msg')
+            const iframe = document.getElementById('proxy-iframe')
+
+            // Get project_id from server-injected global variable
+            const projectId = window.__PROJECT_ID__
+
+            // Generate or retrieve 8-char random device ID
+            function getDeviceId() {
+                let deviceId = localStorage.getItem('device_id')
+                if (!deviceId) {
+                    const chars =
+                        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+                    deviceId = ''
+                    for (let i = 0; i < 8; i++) {
+                        deviceId += chars.charAt(
+                            Math.floor(Math.random() * chars.length),
+                        )
+                    }
+                    localStorage.setItem('device_id', deviceId)
+                }
+                return deviceId
+            }
+            const deviceId = getDeviceId()
+
+            // Save verification result to localStorage (keyed by projectId)
+            function saveAuth(projectUrl, expireAt, htmlContent) {
+                if (!projectId) return
+                const authData = {
+                    projectUrl,
+                    expireAt: expireAt || null,
+                    htmlContent: htmlContent || null,
+                    deviceId,
+                    verifiedAt: new Date().toISOString(),
+                }
+                localStorage.setItem(
+                    `proxy_auth_${projectId}`,
+                    JSON.stringify(authData),
+                )
+            }
+
+            // Clear saved auth for current project
+            function clearAuth() {
+                if (projectId) {
+                    localStorage.removeItem(`proxy_auth_${projectId}`)
+                }
+            }
+
+            // Local-only check: returns cached authData if present and not expired
+            function getLocalAuth() {
+                if (!projectId) return null
+                try {
+                    const raw = localStorage.getItem(`proxy_auth_${projectId}`)
+                    if (!raw) return null
+                    const authData = JSON.parse(raw)
+                    if (authData.deviceId !== deviceId) return null
+                    if (!authData.projectUrl && !authData.htmlContent)
+                        return null
+                    if (authData.expireAt) {
+                        const expireDate = new Date(authData.expireAt)
+                        if (expireDate < new Date()) {
+                            clearAuth()
+                            return null
+                        }
+                    }
+                    return authData
+                } catch (_) {
+                    return null
+                }
+            }
+
+            // Server-side check: verify device binding is still valid
+            async function serverCheckAuth() {
+                if (!projectId || !deviceId) return false
+                try {
+                    const params = new URLSearchParams({
+                        project_id: projectId,
+                        device_id: deviceId,
+                    })
+                    const res = await fetch(
+                        `${API_BASE}/api/cardkeys/check?${params}`,
+                    )
+                    const data = await res.json()
+                    return !!data.valid
+                } catch (_) {
+                    // On network error, allow cached auth (fail-open)
+                    return true
+                }
+            }
+
+            // Show project: render HTML directly or load URL in iframe
+            function showProject(projectUrl, htmlContent) {
+                if (htmlContent) {
+                    // HTML project: replace entire page content
+                    document.open()
+                    document.write(htmlContent)
+                    document.close()
+                } else {
+                    // URL project: use iframe
+                    iframe.src = projectUrl
+                    overlay.style.display = 'none'
+                    content.style.display = 'block'
+                }
+            }
+
+            // Show auth form (default state)
+            function showAuthForm() {
+                overlay.style.display = 'flex'
+                content.style.display = 'none'
+                btn.disabled = false
+                btn.textContent = '验 证'
+            }
+
+            // On load: check saved auth + server revalidate
+            async function initAuth() {
+                const localAuth = getLocalAuth()
+                if (localAuth) {
+                    // Show content immediately for fast UX, then revalidate in background
+                    showProject(localAuth.projectUrl, localAuth.htmlContent)
+
+                    // Skip server recheck if HTML was rendered (page is already replaced)
+                    if (localAuth.htmlContent) return
+
+                    const isValid = await serverCheckAuth()
+                    if (!isValid) {
+                        // Server says binding is gone — kick back to auth form
+                        clearAuth()
+                        iframe.src = ''
+                        showAuthForm()
+                    }
+                } else {
+                    showAuthForm()
+                }
+            }
+
+            initAuth()
+
+            async function verify() {
+                const key = input.value.trim()
+                if (!key) {
+                    errorMsg.textContent = '请输入卡密'
+                    input.focus()
+                    return
+                }
+                if (!projectId) {
+                    errorMsg.textContent = '缺少项目信息，请通过正确链接访问'
+                    return
+                }
+
+                btn.disabled = true
+                btn.textContent = '验证中...'
+                errorMsg.textContent = ''
+
+                try {
+                    const params = new URLSearchParams({
+                        project_id: projectId,
+                        device_id: deviceId,
+                    })
+                    const res = await fetch(
+                        `${API_BASE}/api/cardkeys/verify/${encodeURIComponent(key)}?${params}`,
+                    )
+                    const data = await res.json()
+
+                    if (!data.valid) {
+                        errorMsg.textContent = data.error || '验证失败'
+                        btn.disabled = false
+                        btn.textContent = '验 证'
+                        return
+                    }
+
+                    if (!data.projectUrl && !data.htmlContent) {
+                        errorMsg.textContent = '未获取到项目地址'
+                        btn.disabled = false
+                        btn.textContent = '验 证'
+                        return
+                    }
+
+                    // Save auth result for next visit
+                    saveAuth(data.projectUrl, data.expireAt, data.htmlContent)
+
+                    // Show expiry info if available
+                    if (data.expireAt) {
+                        const expireDate = new Date(data.expireAt)
+                        const infoEl = document.createElement('div')
+                        infoEl.style.cssText =
+                            'margin-top:10px;font-size:12px;color:rgba(255,255,255,0.5);'
+                        infoEl.textContent =
+                            '有效期至：' +
+                            expireDate.toLocaleDateString('zh-CN')
+                        errorMsg.parentNode.insertBefore(
+                            infoEl,
+                            errorMsg.nextSibling,
+                        )
+                    }
+
+                    // Load project: render HTML directly or use iframe
+                    showProject(data.projectUrl, data.htmlContent)
+                } catch (e) {
+                    errorMsg.textContent = '网络异常，请稍后重试'
+                    btn.disabled = false
+                    btn.textContent = '验 证'
+                }
+            }
+
+            btn.addEventListener('click', verify)
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') verify()
+            })
+        </script>
+    </body>
+</html>
