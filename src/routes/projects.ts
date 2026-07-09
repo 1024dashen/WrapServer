@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getDb, saveDb } from '../db'
+import { getDb, saveDb, getShanghaiTime } from '../db'
 import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs'
 import { join, extname } from 'path'
 
@@ -138,7 +138,7 @@ projects.post('/', async (c) => {
 
     const db = await getDb()
     db.run(
-        'INSERT INTO projects (user_id, template_id, name, url, type, status) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO projects (user_id, template_id, name, url, type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
             jwtUser.id,
             template_id || null,
@@ -146,6 +146,7 @@ projects.post('/', async (c) => {
             normalizedUrl,
             type || 'url',
             status || 'active',
+            getShanghaiTime(),
         ],
     )
     const result = db.exec('SELECT last_insert_rowid()')

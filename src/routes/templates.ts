@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getDb, saveDb } from '../db'
+import { getDb, saveDb, getShanghaiTime } from '../db'
 import {
     writeFileSync,
     unlinkSync,
@@ -91,8 +91,8 @@ templates.post('/', async (c) => {
 
     const db = await getDb()
     db.run(
-        'INSERT INTO templates (name, html_content, file_name) VALUES (?, ?, ?)',
-        [name, randomFileName, randomFileName],
+        'INSERT INTO templates (name, html_content, file_name, created_at) VALUES (?, ?, ?, ?)',
+        [name, randomFileName, randomFileName, getShanghaiTime()],
     )
     const result = db.exec('SELECT last_insert_rowid()')
     const id = result[0].values[0][0]

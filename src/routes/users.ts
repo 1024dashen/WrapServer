@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getDb, saveDb } from '../db'
+import { getDb, saveDb, getShanghaiTime } from '../db'
 import bcrypt from 'bcryptjs'
 
 const users = new Hono()
@@ -67,13 +67,14 @@ users.post('/', async (c) => {
     const hashedPassword = bcrypt.hashSync(password, 10)
 
     db.run(
-        'INSERT INTO users (email, username, password, role, status) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO users (email, username, password, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         [
             email,
             username,
             hashedPassword,
             role || '运营人员',
             status || 'active',
+            getShanghaiTime(),
         ],
     )
     const result = db.exec('SELECT last_insert_rowid()')

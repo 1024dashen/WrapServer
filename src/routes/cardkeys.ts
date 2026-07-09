@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getDb, saveDb } from '../db'
+import { getDb, saveDb, getShanghaiTime } from '../db'
 
 const cardkeys = new Hono()
 
@@ -120,7 +120,7 @@ cardkeys.post('/', async (c) => {
 
     const db = await getDb()
     db.run(
-        'INSERT INTO card_keys (project_id, key, type, status, duration, remark, one_device_one_code, expire_at, used_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO card_keys (project_id, key, type, status, duration, remark, one_device_one_code, expire_at, used_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             projectId,
             key,
@@ -131,6 +131,7 @@ cardkeys.post('/', async (c) => {
             oneDeviceOneCode ? 1 : 0,
             expireAt || null,
             usedBy || null,
+            getShanghaiTime(),
         ],
     )
     const result = db.exec('SELECT last_insert_rowid()')
@@ -162,7 +163,7 @@ cardkeys.post('/batch', async (c) => {
     for (let i = 0; i < count; i++) {
         const key = generateKey()
         db.run(
-            'INSERT INTO card_keys (project_id, key, type, status, duration, remark, one_device_one_code) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO card_keys (project_id, key, type, status, duration, remark, one_device_one_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 projectId,
                 key,
@@ -171,6 +172,7 @@ cardkeys.post('/batch', async (c) => {
                 duration ?? null,
                 remark || null,
                 oneDeviceOneCode ? 1 : 0,
+                getShanghaiTime(),
             ],
         )
     }
@@ -238,7 +240,8 @@ cardkeys.put('/:id', async (c) => {
     }
     // Auto-set used_at when status changes to 'used'
     if (status === 'used' && usedAt === undefined) {
-        updates.push("used_at = datetime('now', '+8 hours')")
+        updates.push('used_at = ?')
+        values.push(getShanghaiTime())
     }
 
     if (updates.length > 0) {

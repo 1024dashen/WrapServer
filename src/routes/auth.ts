@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { getDb, saveDb } from '../db'
+import { getDb, saveDb, getShanghaiTime } from '../db'
 import bcrypt from 'bcryptjs'
 import { generateToken, authMiddleware } from '../middleware/auth'
 
@@ -24,8 +24,15 @@ auth.post('/register', async (c) => {
 
     const hashedPassword = bcrypt.hashSync(password, 10)
     db.run(
-        'INSERT INTO users (email, username, password, role, status) VALUES (?, ?, ?, ?, ?)',
-        [email, username, hashedPassword, '普通管理员', 'active'],
+        'INSERT INTO users (email, username, password, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [
+            email,
+            username,
+            hashedPassword,
+            '普通管理员',
+            'active',
+            getShanghaiTime(),
+        ],
     )
 
     const result = db.exec('SELECT last_insert_rowid()')

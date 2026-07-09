@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
-import { initDatabase } from './db'
+import { initDatabase, getShanghaiTime } from './db'
 import { authMiddleware } from './middleware/auth'
 import auth from './routes/auth'
 import users from './routes/users'
@@ -150,11 +150,8 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
 
     // Mark card key as used and bind device_id if it was unused
     if (cardKey.status === 'unused') {
-        const updateParts: string[] = [
-            "status = 'used'",
-            "used_at = datetime('now', '+8 hours')",
-        ]
-        const updateValues: any[] = []
+        const updateParts: string[] = ["status = 'used'", 'used_at = ?']
+        const updateValues: any[] = [getShanghaiTime()]
 
         if (deviceId) {
             updateParts.push('device_id = ?')
@@ -165,8 +162,11 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
             const durationSec = Number(cardKey.duration)
             if (durationSec > 0) {
                 const expireDate = new Date(Date.now() + durationSec * 1000)
+                const expireStr = expireDate.toLocaleString('sv-SE', {
+                    timeZone: 'Asia/Shanghai',
+                })
                 updateParts.push('expire_at = ?')
-                updateValues.push(expireDate.toISOString())
+                updateValues.push(expireStr)
             }
         }
 

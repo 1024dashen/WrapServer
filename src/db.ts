@@ -5,6 +5,18 @@ import bcrypt from 'bcryptjs'
 
 const dbPath = join(process.cwd(), 'data.db')
 
+/**
+ * 获取当前上海时区时间字符串，格式：YYYY-MM-DD HH:mm:ss
+ * 不依赖 SQLite datetime 函数，确保时区一致性
+ */
+export function getShanghaiTime(): string {
+    const now = new Date()
+    const shanghaiStr = now.toLocaleString('sv-SE', {
+        timeZone: 'Asia/Shanghai',
+    })
+    return shanghaiStr
+}
+
 let db: Database
 
 export async function getDb(): Promise<Database> {
@@ -41,7 +53,7 @@ export async function initDatabase() {
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT '运营人员',
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     )
   `)
 
@@ -55,7 +67,7 @@ export async function initDatabase() {
       url TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'url',
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL
     )
@@ -75,7 +87,7 @@ export async function initDatabase() {
       device_id TEXT,
       expire_at TEXT,
       used_by TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     )
   `)
@@ -133,7 +145,7 @@ export async function initDatabase() {
       name TEXT NOT NULL,
       html_content TEXT NOT NULL,
       file_name TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     )
   `)
 
