@@ -138,6 +138,13 @@ export async function initDatabase() {
         // Column already exists
     }
 
+    // Add proxy_url column to existing projects table if missing
+    try {
+        database.run('ALTER TABLE projects ADD COLUMN proxy_url TEXT')
+    } catch (_) {
+        // Column already exists
+    }
+
     // Templates table
     database.run(`
     CREATE TABLE IF NOT EXISTS templates (

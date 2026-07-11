@@ -124,7 +124,7 @@ projects.get('/:id', async (c) => {
 projects.post('/', async (c) => {
     const jwtUser = (c as any).get('user') as any
     const body = await c.req.json()
-    const { name, url, status, template_id, type } = body
+    const { name, url, status, template_id, type, proxy_url } = body
 
     if (!name || !url) {
         return c.json({ error: '请填写完整信息' }, 400)
@@ -138,7 +138,7 @@ projects.post('/', async (c) => {
 
     const db = await getDb()
     db.run(
-        'INSERT INTO projects (user_id, template_id, name, url, type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO projects (user_id, template_id, name, url, type, status, proxy_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [
             jwtUser.id,
             template_id || null,
@@ -146,6 +146,7 @@ projects.post('/', async (c) => {
             normalizedUrl,
             type || 'url',
             status || 'active',
+            proxy_url || null,
             getShanghaiTime(),
         ],
     )
@@ -161,7 +162,7 @@ projects.put('/:id', async (c) => {
     const jwtUser = (c as any).get('user') as any
     const id = c.req.param('id')
     const body = await c.req.json()
-    const { name, url, status, template_id, type } = body
+    const { name, url, status, template_id, type, proxy_url } = body
 
     const db = await getDb()
 
@@ -200,6 +201,10 @@ projects.put('/:id', async (c) => {
     if (type) {
         updates.push('type = ?')
         values.push(type)
+    }
+    if (proxy_url !== undefined) {
+        updates.push('proxy_url = ?')
+        values.push(proxy_url || null)
     }
 
     if (updates.length > 0) {

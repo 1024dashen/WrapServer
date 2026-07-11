@@ -317,6 +317,126 @@ app.get('/health', (c) => {
     return c.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// Game routes - serve HTML project files and proxy resources
+app.get('/game/:projectId', async (c) => {
+    return handleGameIndex(c)
+})
+app.get('/game/:projectId/*', async (c) => {
+    return handleGameProxy(c)
+})
+
+async function handleGameIndex(c: any) {
+    const projectId = c.req.param('projectId')
+    const { getDb } = await import('./db')
+    const { join } = await import('path')
+    const { existsSync, readFileSync } = await import('fs')
+    const db = await getDb()
+
+    // Query project info
+    const result = db.exec(
+        'SELECT url, type, proxy_url FROM projects WHERE id = ?',
+        [projectId],
+    )
+    if (result.length === 0 || result[0].values.length === 0) {
+        return c.text('项目不存在', 404)
+    }
+
+    const [, projType] = result[0].values[0] as string[]
+    if (projType !== 'html') {
+        return c.text('该项目不是 HTML 类型项目', 400)
+    }
+
+    const projectUrl = result[0].values[0][0] as string
+    const fileName = projectUrl.split('/').pop()
+    if (!fileName) {
+        return c.text('项目文件路径无效', 500)
+    }
+
+    const filePath = join(process.cwd(), 'prohtmls', fileName)
+    if (!existsSync(filePath)) {
+        return c.text('HTML 文件不存在', 404)
+    }
+
+    const htmlContent = readFileSync(filePath, 'utf-8')
+    return c.html(htmlContent)
+}
+
+async function handleGameProxy(c: any) {
+    const projectId = c.req.param('projectId')
+
+    // Extract the sub-path after /game/:projectId/
+    const fullPath = c.req.path // e.g. /game/01/js/app.js
+    const prefix = `/game/${projectId}/`
+    const subPath = fullPath.startsWith(prefix)
+        ? fullPath.slice(prefix.length)
+        : fullPath.slice(`/game/${projectId}`.length + 1)
+
+    // Empty sub-path means /game/18/ → serve HTML index
+    if (!subPath) {
+        return handleGameIndex(c)
+    }
+
+    return proxyResource(c, projectId, subPath)
+}
+
+async function proxyResource(c: any, projectId: string, resourcePath: string) {
+    const { getDb } = await import('./db')
+    const db = await getDb()
+
+    const result = db.exec('SELECT proxy_url FROM projects WHERE id = ?', [
+        projectId,
+    ])
+    if (result.length === 0 || result[0].values.length === 0) {
+        return c.text('项目不存在', 404)
+    }
+
+    const proxyUrl = result[0].values[0][0] as string
+    if (!proxyUrl) {
+        return c.text('该项目未配置代理地址', 400)
+    }
+
+    const targetUrl = proxyUrl.replace(/\/$/, '') + '/' + resourcePath
+    const queryStr = c.req.query()
+    const finalUrl = queryStr ? `${targetUrl}?${queryStr}` : targetUrl
+
+    try {
+        const response = await fetch(finalUrl, {
+            method: c.req.method,
+            headers: {
+                'User-Agent': 'WebWrap-Proxy/1.0',
+            },
+        })
+
+        const responseHeaders: Record<string, string> = {}
+        response.headers.forEach((value, key) => {
+            const lowerKey = key.toLowerCase()
+            if (
+                lowerKey !== 'transfer-encoding' &&
+                lowerKey !== 'connection' &&
+                lowerKey !== 'content-encoding'
+            ) {
+                responseHeaders[key] = value
+            }
+        })
+
+        const contentType =
+            response.headers.get('content-type') || 'application/octet-stream'
+        const body = await response.arrayBuffer()
+
+        return new Response(body, {
+            status: response.status,
+            headers: {
+                ...responseHeaders,
+                'Content-Type': contentType,
+                'Access-Control-Allow-Origin': '*',
+            },
+        })
+    } catch (error: any) {
+        console.error(`[GameProxy] Failed to proxy ${finalUrl}:`, error.message)
+        return c.text(`代理请求失败: ${error.message}`, 502)
+    }
+}
+
 // Serve prohtmls static files (uploaded project HTML files)
 app.get('/prohtmls/:filename', async (c) => {
     const filename = c.req.param('filename')
