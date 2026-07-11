@@ -145,6 +145,13 @@ export async function initDatabase() {
         // Column already exists
     }
 
+    // Add html_file column to existing projects table if missing
+    try {
+        database.run('ALTER TABLE projects ADD COLUMN html_file TEXT')
+    } catch (_) {
+        // Column already exists
+    }
+
     // Templates table
     database.run(`
     CREATE TABLE IF NOT EXISTS templates (

@@ -181,7 +181,7 @@ pm2 start ecosystem.config.cjs
 
 pm2 reload ecosystem.config.cjs
 
-
+pm2 restart ecosystem.config.cjs
 
 # 4. 设置开机自启
 pm2 startup

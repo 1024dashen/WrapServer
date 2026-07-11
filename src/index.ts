@@ -185,21 +185,19 @@ app.get('/api/cardkeys/verify/:key', async (c) => {
     let htmlContent: string | null = null
     if (projectId) {
         const projectResult = db.exec(
-            'SELECT url, type FROM projects WHERE id = ?',
+            'SELECT url, type, html_file FROM projects WHERE id = ?',
             [projectId],
         )
         if (projectResult.length > 0 && projectResult[0].values.length > 0) {
             projectUrl = projectResult[0].values[0][0] as string
             projectType = (projectResult[0].values[0][1] as string) || 'url'
-        }
+            const htmlFile = projectResult[0].values[0][2] as string
 
-        // If HTML project, read file content directly
-        if (projectType === 'html' && projectUrl) {
-            const fileName = projectUrl.split('/').pop()
-            if (fileName) {
+            // If HTML project, read file from html_file field
+            if (projectType === 'html' && htmlFile) {
                 const { join } = await import('path')
                 const { existsSync, readFileSync } = await import('fs')
-                const filePath = join(process.cwd(), 'prohtmls', fileName)
+                const filePath = join(process.cwd(), 'prohtmls', htmlFile)
                 if (existsSync(filePath)) {
                     htmlContent = readFileSync(filePath, 'utf-8')
                 }
@@ -332,27 +330,25 @@ async function handleGameIndex(c: any) {
     const { existsSync, readFileSync } = await import('fs')
     const db = await getDb()
 
-    // Query project info
+    // Query project info - read html_file for the actual file reference
     const result = db.exec(
-        'SELECT url, type, proxy_url FROM projects WHERE id = ?',
+        'SELECT type, html_file FROM projects WHERE id = ?',
         [projectId],
     )
     if (result.length === 0 || result[0].values.length === 0) {
         return c.text('项目不存在', 404)
     }
 
-    const [, projType] = result[0].values[0] as string[]
+    const [projType, htmlFile] = result[0].values[0] as string[]
     if (projType !== 'html') {
         return c.text('该项目不是 HTML 类型项目', 400)
     }
 
-    const projectUrl = result[0].values[0][0] as string
-    const fileName = projectUrl.split('/').pop()
-    if (!fileName) {
-        return c.text('项目文件路径无效', 500)
+    if (!htmlFile) {
+        return c.text('项目未关联 HTML 文件', 500)
     }
 
-    const filePath = join(process.cwd(), 'prohtmls', fileName)
+    const filePath = join(process.cwd(), 'prohtmls', htmlFile)
     if (!existsSync(filePath)) {
         return c.text('HTML 文件不存在', 404)
     }

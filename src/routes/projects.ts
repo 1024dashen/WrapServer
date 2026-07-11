@@ -136,22 +136,40 @@ projects.post('/', async (c) => {
         normalizedUrl = 'http://' + normalizedUrl
     }
 
+    // For HTML projects, extract filename and will set game URL after insert
+    let htmlFile: string | null = null
+    const projectType = type || 'url'
+    if (projectType === 'html') {
+        htmlFile = normalizedUrl.split('/').pop() || null
+    }
+
     const db = await getDb()
     db.run(
-        'INSERT INTO projects (user_id, template_id, name, url, type, status, proxy_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO projects (user_id, template_id, name, url, type, status, proxy_url, html_file, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             jwtUser.id,
             template_id || null,
             name,
             normalizedUrl,
-            type || 'url',
+            projectType,
             status || 'active',
             proxy_url || null,
+            htmlFile,
             getShanghaiTime(),
         ],
     )
     const result = db.exec('SELECT last_insert_rowid()')
     const id = result[0].values[0][0]
+
+    // For HTML projects, update URL to game route address
+    if (projectType === 'html') {
+        // Extract base URL from request: http://host/api/projects → http://host
+        const reqUrl = new URL(c.req.url)
+        const baseUrl = `${reqUrl.protocol}//${reqUrl.host}`
+        const gameUrl = `${baseUrl}/game/${id}/`
+        db.run('UPDATE projects SET url = ? WHERE id = ?', [gameUrl, id])
+    }
+
     saveDb()
 
     return c.json({ message: '创建成功', id })
@@ -223,23 +241,20 @@ projects.delete('/:id', async (c) => {
     const db = await getDb()
 
     const project = db.exec(
-        'SELECT id, url, type FROM projects WHERE id = ? AND user_id = ?',
+        'SELECT id, url, type, html_file FROM projects WHERE id = ? AND user_id = ?',
         [id, jwtUser.id],
     )
     if (project.length === 0 || project[0].values.length === 0) {
         return c.json({ error: '项目不存在或无权操作' }, 404)
     }
 
-    const [, projUrl, projType] = project[0].values[0]
+    const [, , projType, htmlFile] = project[0].values[0]
 
     // Delete associated HTML file if this is an html project
-    if (projType === 'html' && projUrl) {
-        const fileName = (projUrl as string).split('/').pop()
-        if (fileName) {
-            const filePath = join(PROHTMLS_DIR, fileName)
-            if (existsSync(filePath)) {
-                unlinkSync(filePath)
-            }
+    if (projType === 'html' && htmlFile) {
+        const filePath = join(PROHTMLS_DIR, htmlFile as string)
+        if (existsSync(filePath)) {
+            unlinkSync(filePath)
         }
     }
 
