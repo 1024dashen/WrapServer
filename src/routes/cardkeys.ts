@@ -36,6 +36,7 @@ cardkeys.get('/project/:projectId', async (c) => {
     const page = parseInt(c.req.query('page') || '1')
     const pageSize = parseInt(c.req.query('pageSize') || '10')
     const search = (c.req.query('search') || '').trim()
+    const status = (c.req.query('status') || '').trim()
     const offset = (page - 1) * pageSize
     const db = await getDb()
 
@@ -46,6 +47,11 @@ cardkeys.get('/project/:projectId', async (c) => {
         whereClause += ' AND (key LIKE ? OR remark LIKE ? OR device_id LIKE ?)'
         const like = `%${search}%`
         params.push(like, like, like)
+    }
+
+    if (status) {
+        whereClause += ' AND status = ?'
+        params.push(status)
     }
 
     const countResult = db.exec(
