@@ -269,3 +269,9 @@ sudo certbot --nginx -d your-domain.com
 ```
 
 配置完成后，外部请求会通过 Nginx 代理到 `http://127.0.0.1:3000` 的 WrapServer 服务。
+
+# 服务器备份
+
+zip -r dist.zip dist
+
+unzip dist.zip
